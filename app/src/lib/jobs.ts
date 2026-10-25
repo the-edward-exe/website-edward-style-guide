@@ -1,7 +1,8 @@
-import { getProfile, finishSheet, finishPhotoRead } from './profiles';
+import { getProfile, finishSheet, finishPhotoRead, finishGuide } from './profiles';
 import { readImage, saveImage } from './storage';
 import { generateCharacterSheet } from './ai/gemini';
 import { readPhoto } from './ai/claude';
+import { generateGuide } from './ai/guide';
 
 const message = (e: unknown) => (e instanceof Error ? e.message : 'SOMETHING WENT WRONG. TRY AGAIN.');
 
@@ -56,4 +57,25 @@ export function startSheetJob(id: string, attempt: number): void {
 export function startPhotoJobs(id: string, attempt: number): void {
   void runSheetJob(id, attempt);
   void runPhotoReadJob(id, attempt);
+}
+
+export async function runGuideJob(id: string, attempt: number): Promise<void> {
+  try {
+    const p = await getProfile(id);
+    if (!p || p.guideAttempt !== attempt || !p.photoPath) return;
+    let guide;
+    try {
+      guide = await generateGuide(p, await readImage(p.photoPath));
+    } catch (e) {
+      await finishGuide(id, attempt, { error: message(e) });
+      return;
+    }
+    await finishGuide(id, attempt, { guide });
+  } catch (e) {
+    console.error('guide job failed', e);
+  }
+}
+
+export function startGuideJob(id: string, attempt: number): void {
+  void runGuideJob(id, attempt);
 }

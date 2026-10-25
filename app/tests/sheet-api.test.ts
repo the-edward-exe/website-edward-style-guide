@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-vi.mock('../src/lib/jobs', () => ({ startSheetJob: vi.fn(), startPhotoJobs: vi.fn() }));
+vi.mock('../src/lib/jobs', () => ({ startSheetJob: vi.fn(), startPhotoJobs: vi.fn(), startGuideJob: vi.fn() }));
 
 import { sql } from '../src/lib/db';
 import { createProfile, getProfile, setPhoto, finishSheet } from '../src/lib/profiles';
