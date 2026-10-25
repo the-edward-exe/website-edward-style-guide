@@ -21,22 +21,7 @@ function stage(p: Profile): string {
 const date = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase();
 ---
 <Base title="Profiles">
-  <section class="intro" id="start">
-    <span class="label">Vestry · Personal style</span>
-    <h1>One photo. Twelve questions. Clothes that fit you.</h1>
-    <p class="muted">Enter your first name, then drop a photo of yourself into the frame below.</p>
-    <label class="field name">
-      <span class="label">First name</span>
-      <input class="input" id="name" maxlength="40" autocomplete="given-name" />
-    </label>
-  </section>
-
-  <div class="countbar">
-    <span>{profiles.length} {profiles.length === 1 ? 'Profile' : 'Profiles'}</span>
-    <span class="muted">Newest first</span>
-  </div>
-
-  <div class="grid">
+  <section class="hero" id="start">
     <div class="card">
       <label class="pic drop" id="drop">
         <img id="preview" alt="" hidden />
@@ -48,21 +33,38 @@ const date = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: '
         <input id="file" type="file" accept="image/jpeg,image/png,image/webp" />
       </label>
       <span class="label" id="dropLabel">New profile</span>
-      <span class="name" id="dropName">Your photo</span>
       <span class="error" id="dropError"></span>
     </div>
 
-    {profiles.map((p) => (
-      <a class="card" href={`/p/${p.id}`}>
-        <div class:list={['pic', { empty: !p.photoPath }]}>
-          {p.photoPath && <img src={`/api/p/${p.id}/image/photo?v=${p.attempt}`} alt={p.name} loading="lazy" />}
-        </div>
-        <span class="label">{stage(p)}</span>
-        <span class="name">{p.name}</span>
-        <span class="sub">{date(p.createdAt)}</span>
-      </a>
-    ))}
+    <div class="intro">
+      <span class="label">Vestry · Personal style</span>
+      <h1>One photo. Twelve questions. Clothes that fit you.</h1>
+      <p class="muted">Get your fit started today.</p>
+      <div><button type="button" class="start" id="getStarted">Get Started</button></div>
+    </div>
+  </section>
+
+  <div class="countbar">
+    <span>{profiles.length} {profiles.length === 1 ? 'Profile' : 'Profiles'}</span>
+    <span class="muted">Newest first</span>
   </div>
+
+  {profiles.length === 0
+    ? <p class="muted empty">No profiles yet.</p>
+    : (
+      <div class="grid">
+        {profiles.map((p) => (
+          <a class="card" href={`/p/${p.id}`}>
+            <div class:list={['pic', { empty: !p.photoPath }]}>
+              {p.photoPath && <img src={`/api/p/${p.id}/image/photo?v=${p.attempt}`} alt={p.name} loading="lazy" />}
+            </div>
+            <span class="label">{stage(p)}</span>
+            <span class="name">{p.name}</span>
+            <span class="sub">{date(p.createdAt)}</span>
+          </a>
+        ))}
+      </div>
+    )}
 
   {resume
     ? <QuizDialog mode="resume" profileId={resume.id} answers={resumeAnswers} startStep={resumeStep} />
@@ -71,14 +73,12 @@ const date = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: '
 
 <script>
   const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
-  const nameInput = $<HTMLInputElement>('name');
   const drop = $('drop');
   const fileInput = $<HTMLInputElement>('file');
   const preview = $<HTMLImageElement>('preview');
   const dropError = $('dropError');
 
   let profileId: string | null = null;
-  let pendingFile: File | null = null;
   let busy = false;
 
   async function postJson(url: string, body: FormData) {
@@ -91,22 +91,12 @@ const date = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: '
     preview.src = URL.createObjectURL(file);
     preview.hidden = false;
     $('prompt').hidden = true;
-    const name = nameInput.value.trim();
-    if (!name) {
-      pendingFile = file;
-      dropError.textContent = 'Enter a first name, then press Enter.';
-      nameInput.focus();
-      return;
-    }
     if (busy) return;
     busy = true;
     drop.classList.add('busy');
-    $('dropName').textContent = name;
     try {
       if (!profileId) {
-        const form = new FormData();
-        form.append('name', name);
-        const created = await postJson('/api/profiles', form);
+        const created = await postJson('/api/profiles', new FormData());
         if (!created?.ok) throw new Error(created?.error ?? 'COULD NOT START. TRY AGAIN.');
         profileId = created.id;
       }
@@ -130,15 +120,26 @@ const date = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: '
   drop.addEventListener('drop', (e) => { const f = (e as DragEvent).dataTransfer?.files?.[0]; if (f) start(f); });
   window.addEventListener('dragover', (e) => e.preventDefault());
   window.addEventListener('drop', (e) => e.preventDefault());
-  nameInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && pendingFile && nameInput.value.trim()) { const f = pendingFile; pendingFile = null; start(f); }
-  });
+  $('getStarted').addEventListener('click', () => fileInput.click());
 </script>
 
 <style>
-  .intro { display: flex; flex-direction: column; gap: 14px; padding-bottom: 36px; margin-bottom: 8px; border-bottom: 1px solid var(--line); }
+  /* Top row: the photo drop zone, with the headline and Get Started to its right. */
+  .hero {
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px var(--gap); align-items: center;
+    padding-bottom: 36px; margin-bottom: 8px; border-bottom: 1px solid var(--line);
+  }
+  .intro { grid-column: span 2; display: flex; flex-direction: column; gap: 16px; padding-left: clamp(0px, 3vw, 40px); }
   .intro > * { max-width: 520px; }
-  .name.field { max-width: 320px; margin-top: 4px; }
+  .intro h1 { font-size: clamp(1.25rem, 1rem + 1.2vw, 1.9rem); }
+  .start {
+    font: 500 var(--text-xs)/1 var(--font); text-transform: uppercase; letter-spacing: var(--track-label);
+    padding: 15px 28px; border: 0; background: var(--accent); color: var(--accent-ink); cursor: pointer;
+  }
+  .start:hover { background: #774c32; }
+  .empty { padding: 12px 0; }
+  @media (max-width: 900px) { .hero { grid-template-columns: repeat(2, minmax(0, 1fr)); } .intro { grid-column: span 1; padding-left: 0; } }
+  @media (max-width: 560px) { .hero { grid-template-columns: 1fr; } .intro { order: -1; } }
 
   .drop { position: relative; display: flex; align-items: center; justify-content: center; text-align: center; cursor: pointer; outline: 1px dashed var(--muted); outline-offset: -12px; background: var(--chip); }
   .drop:hover, .drop.over { outline: 2px solid var(--ink); outline-offset: -2px; }

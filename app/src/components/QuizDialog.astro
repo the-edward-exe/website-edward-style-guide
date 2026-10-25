@@ -6,6 +6,7 @@
 import Button from './Button.astro';
 import Questions from './Questions.astro';
 import { STEPS, type Answers } from '../lib/questionnaire';
+import { NEW_PROFILE_NAME } from '../lib/profiles';
 
 interface Props {
   mode: 'new' | 'resume' | 'edit';
@@ -13,8 +14,10 @@ interface Props {
   answers?: Partial<Answers>;
   startStep?: number;
   autoOpen?: boolean;
+  name?: string;
 }
-const { mode, profileId = '', answers = {}, startStep = 1, autoOpen = mode === 'resume' } = Astro.props;
+const { mode, profileId = '', answers = {}, startStep = 1, autoOpen = mode === 'resume', name = '' } = Astro.props;
+const firstName = name === NEW_PROFILE_NAME ? '' : name;
 ---
 <dialog id="quiz" class="quiz" aria-labelledby="quizTitle" data-mode={mode} data-profile={profileId} data-start={startStep} data-auto={autoOpen ? '1' : undefined}>
   <div class="qhead">
@@ -30,6 +33,14 @@ const { mode, profileId = '', answers = {}, startStep = 1, autoOpen = mode === '
 
   {STEPS.map((s) => (
     <form class="qstep" data-step={s.n} data-title={s.title} hidden>
+      {s.n === 1 && (
+        <fieldset class="q" data-keys="name">
+          <legend><span class="num">00</span><span class="title">Your first name</span></legend>
+          <div class="field" data-key="name">
+            <label class="text"><span class="label">First name</span><input class="input" name="name" value={firstName} maxlength="40" autocomplete="given-name" /></label>
+          </div>
+        </fieldset>
+      )}
       <Questions step={s} answers={answers} />
       <div class="qactions">
         {mode !== 'edit' && s.n > 1 ? <button class="back label" type="button" data-back>Back</button> : <span />}

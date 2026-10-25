@@ -12,10 +12,9 @@ describe('POST /api/profiles', () => {
     expect(res.headers.get('Location')).toMatch(/^\/p\/[A-Za-z0-9_-]{22}\/photo$/);
   });
 
-  it('sends a blank name back home with an error', async () => {
+  it('starts a profile without a name; the pop-up asks for it', async () => {
     const res = await POST({ request: formRequest('/api/profiles', { name: '   ' }) } as any);
     expect(res.status).toBe(303);
-    expect(res.headers.get('Location')).toBe('/?error=name');
-    expect((await sql`select count(*)::int as n from profiles`)[0].n).toBe(0);
+    expect((await sql`select name from profiles`)[0].name).toBe('New profile');
   });
 });

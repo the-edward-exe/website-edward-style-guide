@@ -4,6 +4,9 @@ import type { Answers } from './questionnaire';
 import type { PhotoRead } from './ai/claude';
 import type { Guide } from './guide';
 
+/** Name a profile carries until the person types theirs in the pop-up. */
+export const NEW_PROFILE_NAME = 'New profile';
+
 export type JobStatus = 'none' | 'pending' | 'ready' | 'failed';
 
 export type Profile = {
@@ -102,6 +105,10 @@ export async function retrySheet(id: string): Promise<number> {
       photo_read_status = case when photo_read_status = 'pending' then 'failed' else photo_read_status end
     where id = ${id} returning attempt`;
   return r.attempt;
+}
+
+export async function renameProfile(id: string, name: string): Promise<void> {
+  await sql`update profiles set name = ${name} where id = ${id}`;
 }
 
 export async function approveSheet(id: string): Promise<void> {

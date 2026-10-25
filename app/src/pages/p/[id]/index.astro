@@ -146,7 +146,7 @@ const prompts = g ? Object.fromEntries(g.outfits.map((o) => [o.id, tryonPrompt(p
     <AnswerList profile={profile} />
   </details>
 
-  <QuizDialog mode="edit" profileId={profile.id} answers={profile.answers} startStep={editStep || 1} autoOpen={editStep > 0} />
+  <QuizDialog mode="edit" profileId={profile.id} name={profile.name} answers={profile.answers} startStep={editStep || 1} autoOpen={editStep > 0} />
 
   <details class="danger">
     <summary class="label">Delete profile</summary>
