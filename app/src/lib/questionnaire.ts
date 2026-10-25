@@ -18,30 +18,37 @@ const GOALS = ['taller', 'broader', 'streamline', 'balance-hips', 'show-waist', 
 const STYLES = ['classic', 'minimal', 'workwear', 'streetwear', 'preppy', 'boho', 'edgy', 'smart-casual'] as const;
 const AVOID = ['tight', 'shorts', 'bold-patterns', 'sleeveless', 'shiny', 'none'] as const;
 const OCCASIONS = ['date-night', 'travel', 'events', 'weekends'] as const;
+const DRESS_CODES = ['casual', 'business-casual', 'formal', 'uniform', 'remote'] as const;
+const BUDGETS = ['$', '$$', '$$$'] as const;
 const COLORS = COLOR_SWATCHES.map(([c]) => c) as unknown as [string, ...string[]];
 
 const text = (max: number) => z.string().trim().min(1).max(max);
+/** A multi-select answer. A single string (saved before the question allowed several) reads as one pick. */
+const picks = <T extends readonly [string, ...string[]]>(values: T, max?: number) => {
+  const list = z.array(z.enum(values)).min(1);
+  return z.preprocess((v) => (typeof v === 'string' ? [v] : v), max ? list.max(max) : list);
+};
 
 export const AnswersSchema = z.object({
   section: z.enum(['mens', 'womens', 'both']),
   height: text(20),
   topSize: text(20),
   bottomSize: text(20),
-  shape: z.enum(SHAPES),
-  goals: z.array(z.enum(GOALS)).min(1).max(2),
+  shape: picks(SHAPES, 2),
+  goals: z.array(z.enum(GOALS)).min(1),
   skinTone: z.coerce.number().int().min(1).max(7),
   veins: z.enum(['blue', 'green', 'unsure']),
   metal: z.enum(['silver', 'gold', 'both']),
   hair: text(30),
   eyes: text(30),
-  styles: z.array(z.enum(STYLES)).min(1).max(3),
+  styles: z.array(z.enum(STYLES)).min(1),
   loveColors: z.array(z.enum(COLORS)).optional(),
   avoidColors: z.array(z.enum(COLORS)).optional(),
   avoid: z.array(z.enum(AVOID)).min(1),
-  dressCode: z.enum(['casual', 'business-casual', 'formal', 'uniform', 'remote']),
+  dressCode: picks(DRESS_CODES),
   occasions: z.array(z.enum(OCCASIONS)).optional(),
   location: text(60),
-  budget: z.enum(['$', '$$', '$$$']),
+  budget: picks(BUDGETS),
 });
 export type Answers = z.infer<typeof AnswersSchema>;
 export type AnswerKey = keyof Answers;
@@ -68,12 +75,12 @@ export const STEPS: Step[] = [
       { key: 'height', kind: 'text', label: 'Height', placeholder: `5'10" or 178 cm` },
       { key: 'topSize', kind: 'text', label: 'Top size', placeholder: 'M, 40, 10' },
       { key: 'bottomSize', kind: 'text', label: 'Bottom size', placeholder: '32x30, 8, M' }] },
-    { n: 3, title: 'Which shape is closest to yours?', fields: [
-      { key: 'shape', kind: 'shape', options: opts([
+    { n: 3, title: 'Which shape is closest to yours?', hint: 'Pick two if you are between shapes', fields: [
+      { key: 'shape', kind: 'shape', max: 2, options: opts([
         ['inverted-triangle', 'Shoulders wider'], ['pear', 'Hips wider'], ['hourglass', 'Even, defined waist'],
         ['rectangle', 'Even and straight'], ['apple', 'Fuller middle']]) }] },
-    { n: 4, title: 'What should your clothes do for you?', hint: 'Pick up to two', fields: [
-      { key: 'goals', kind: 'multi', max: 2, options: opts([
+    { n: 4, title: 'What should your clothes do for you?', hint: 'Pick all that apply', fields: [
+      { key: 'goals', kind: 'multi', options: opts([
         ['taller', 'Look taller'], ['broader', 'Look broader'], ['streamline', 'Streamline the middle'],
         ['balance-hips', 'Balance the hips'], ['show-waist', 'Show the waist'], ['comfort', 'Just feel comfortable']]) }] },
   ] },
@@ -87,8 +94,8 @@ export const STEPS: Step[] = [
       { key: 'eyes', kind: 'text', label: 'Eyes', placeholder: 'brown' }] },
   ] },
   { n: 3, title: 'YOUR TASTE', questions: [
-    { n: 8, title: 'Looks you like', hint: 'Pick up to three', fields: [
-      { key: 'styles', kind: 'tiles', max: 3, options: opts([
+    { n: 8, title: 'Looks you like', hint: 'Pick all that apply', fields: [
+      { key: 'styles', kind: 'tiles', options: opts([
         ['classic', 'Classic', 'Navy blazer, oxford, loafers'], ['minimal', 'Minimal', 'Clean lines, few colors'],
         ['workwear', 'Rugged / workwear', 'Chore coat, denim, boots'], ['streetwear', 'Streetwear', 'Hoodies, sneakers, relaxed'],
         ['preppy', 'Preppy', 'Polos, chinos, knits'], ['boho', 'Boho', 'Loose, layered, earthy'],
@@ -103,18 +110,18 @@ export const STEPS: Step[] = [
   ] },
   { n: 4, title: 'YOUR LIFE', questions: [
     { n: 11, title: 'What does your week look like?', fields: [
-      { key: 'dressCode', kind: 'single', label: 'Work dress code', options: opts([
+      { key: 'dressCode', kind: 'multi', label: 'Work dress code', options: opts([
         ['casual', 'Casual'], ['business-casual', 'Business casual'], ['formal', 'Formal'], ['uniform', 'Uniform'], ['remote', 'Remote']]) },
       { key: 'occasions', kind: 'multi', label: 'Outfits for', options: opts([
         ['date-night', 'Date night'], ['travel', 'Travel'], ['events', 'Events'], ['weekends', 'Weekends']]) }] },
     { n: 12, title: 'Climate and budget', fields: [
       { key: 'location', kind: 'text', label: 'City or ZIP', placeholder: 'Austin, TX' },
-      { key: 'budget', kind: 'single', label: 'Budget per piece', options: opts([
+      { key: 'budget', kind: 'multi', label: 'Budget per piece', options: opts([
         ['$', '$ Under $60'], ['$$', '$$ $60 to $150'], ['$$$', '$$$ Over $150']]) }] },
   ] },
 ];
 
-export const MULTI_KEYS = new Set<AnswerKey>(['goals', 'styles', 'loveColors', 'avoidColors', 'avoid', 'occasions']);
+export const MULTI_KEYS = new Set<AnswerKey>(['shape', 'goals', 'styles', 'loveColors', 'avoidColors', 'avoid', 'occasions', 'dressCode', 'budget']);
 
 export function stepFields(n: number): AnswerKey[] {
   return STEPS.find((s) => s.n === n)?.questions.flatMap((q) => q.fields.map((f) => f.key)) ?? [];

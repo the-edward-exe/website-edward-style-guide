@@ -36,9 +36,12 @@ export const STORE_IDS = Object.keys(STORES) as [StoreId, ...StoreId[]];
 
 const TIER_RANK = { $: 1, $$: 2, $$$: 3 } as const;
 
-/** Stores that sell for this section and sit at or one tier above the person's budget. */
-export function storesFor(section: 'mens' | 'womens' | 'both' | undefined, budget: '$' | '$$' | '$$$' | undefined): StoreId[] {
-  const max = TIER_RANK[budget ?? '$$'] + 1;
+type Tier = '$' | '$$' | '$$$';
+
+/** Stores that sell for this section and sit at or one tier above the highest budget picked. */
+export function storesFor(section: 'mens' | 'womens' | 'both' | undefined, budget: Tier | Tier[] | undefined): StoreId[] {
+  const tiers = Array.isArray(budget) ? budget : budget ? [budget] : [];
+  const max = Math.max(...(tiers.length ? tiers : ['$$' as Tier]).map((t) => TIER_RANK[t])) + 1;
   return STORE_IDS.filter((id) => {
     const s: Store = STORES[id];
     const fitsSection = !section || section === 'both' || s.sections.includes(section);

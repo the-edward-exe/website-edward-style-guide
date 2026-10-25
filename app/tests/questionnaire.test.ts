@@ -16,8 +16,8 @@ describe('questionnaire', () => {
     expect(SKIN_SWATCHES.map((s) => s.hex)).toEqual(['#F6DCC7', '#EBC3A3', '#D9A57F', '#C08A62', '#9C6A45', '#74482D', '#4A2D1C']);
   });
 
-  it('allows at most two goals', () => {
-    expect(AnswersSchema.pick({ goals: true }).safeParse({ goals: ['taller', 'broader', 'comfort'] }).success).toBe(false);
+  it('needs at least one goal', () => {
+    expect(AnswersSchema.shape.goals.safeParse([]).success).toBe(false);
   });
 
   it('never overwrites coloring answers already given', () => {

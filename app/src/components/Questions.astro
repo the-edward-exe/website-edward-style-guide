@@ -10,7 +10,7 @@ const has = (f: Field, v: string) => {
   const cur = a[f.key];
   return Array.isArray(cur) ? (cur as string[]).includes(v) : String(cur ?? '') === v;
 };
-const inputType = (f: Field) => (f.kind === 'single' || f.kind === 'shape' || f.kind === 'skin' ? 'radio' : 'checkbox');
+const inputType = (f: Field) => (f.kind === 'single' || f.kind === 'skin' || (f.kind === 'shape' && !f.max) ? 'radio' : 'checkbox');
 const MAXLEN: Record<string, number> = { height: 20, topSize: 20, bottomSize: 20, hair: 30, eyes: 30, location: 60 };
 ---
 {step.questions.map((q) => (
@@ -47,7 +47,7 @@ const MAXLEN: Record<string, number> = { height: 20, topSize: 20, bottomSize: 20
           <div class="shapes">
             {f.options!.map((o) => (
               <label class="shapecard">
-                <input type="radio" name={f.key} value={o.value} checked={has(f, o.value)} />
+                <input type={inputType(f)} name={f.key} value={o.value} checked={has(f, o.value)} />
                 <ShapeIcon shape={o.value} />
                 <span class="label">{o.label}</span>
               </label>
