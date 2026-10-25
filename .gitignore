@@ -1,2 +1,7 @@
 .DS_Store
 *.log
+.env
+app/node_modules
+app/dist
+app/data
+.superpowers
