@@ -115,15 +115,30 @@ No login. Each profile gets a random URL-safe ID and lives at `/p/<id>`. A home 
 
 Edward picked this page for tone and design. What it does, and what the app takes from it:
 
-- **Quiet, image-first.** White background, black text, almost no decoration. The photos do the work. In the app, the character sheet, try-on images and outfit cards carry the screens; copy is minimal.
+- **Quiet, image-first.** Almost no decoration. The photos do the work. In the app, the character sheet, try-on images and outfit cards carry the screens; copy is minimal.
 - **Type:** one condensed sans-serif everywhere (the reference uses Helvetica Neue Condensed). Navigation and labels in small uppercase with wide letter-spacing (~0.1em); body and product names in small regular weight with slight tracking. No serif, no display font, no bold headlines shouting. site-builder picks a freely licensed condensed sans to self-host as the stand-in.
-- **Color:** white page, pure black text, gray at 70% for secondary text, light gray (#F5F5F5 range) behind images. Color comes only from the clothes and the person's own palette swatches. This also matches the character sheet's light-gray studio background.
+- **Color (Edward's decision): the earthy palette from the current guide, not the reference's black and white.** Use the current guide's light tokens as the app's color tokens:
+
+  | Token | Hex | Use |
+  |---|---|---|
+  | `--bg` | #E6E4DF | page background (warm stone, replaces the reference's white) |
+  | `--surface` | #F3F2EE | top bar, panels, image backgrounds behind product shots |
+  | `--ink` | #1D2938 | primary text (deep navy-black, replaces pure black) |
+  | `--muted` | #5D636A | secondary text, prices, counts |
+  | `--line` | #CBC7BF | hairline dividers |
+  | `--chip` | #DAD7D0 | filter chips, empty image placeholders |
+  | `--accent` | #8A5A3C | tobacco: primary buttons, active states, focus ring |
+  | `--accent-ink` | #FFFFFF | text on accent |
+  | `--navy` | #24364F | links, store links |
+  | `--ok` / `--warn` / `--bad` | #3F6B4A / #9A5B12 / #9B2F2F | status messages |
+
+  Accent stays rare, as in the reference: tobacco on the one primary action per screen and on active states, nowhere decorative. The warm stone ground sits well against the character sheet's light-gray studio background.
 - **Layout:** thin top bar with uppercase links left, wordmark centered, utility links right; a thin secondary row of category links; a count line ("18 OUTFITS") with "FILTER & SORT +" on the right. Outfit grid is three tall 3:4 image cards per row with narrow gutters, full width, edge to edge within a small page margin.
 - **Cards:** image on top; below it a tiny uppercase label (occasion or season), the outfit name in regular case, and one gray line (the price range or piece count). No borders, no shadows, no rounded corners.
 - **Tone of copy:** terse and confident. Short labels, product-style names ("Navy Overshirt Weekday"), no exclamation marks, no "Let's get started!" chatter. Instructions say what to do in as few words as possible: "UPLOAD ONE PHOTO", "FRONT. FULL BODY. DAYLIGHT."
 - **Light mode only** to match the reference (*Claude's call*; the reference has no dark mode).
 
-This replaces the current guide's lookbook styling (Bricolage Grotesque, serif body, tobacco accents). The current guide's *content structure* (palette families, rules, capsule, outfit detail with pieces and shop links) carries over; its visual style does not.
+From the current guide, the app keeps the **color palette** and the **content structure** (palette families, rules, capsule, outfit detail with pieces and shop links). From the reference, it takes **type, layout, card style and tone**. The current guide's fonts (Bricolage Grotesque, Source Serif 4, IBM Plex Mono) are not carried over. *Claude's call:* light mode only; the current guide's dark tokens stay unused for now.
 
 ## First delivery: the foundation
 
