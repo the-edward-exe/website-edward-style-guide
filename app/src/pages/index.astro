@@ -1,0 +1,83 @@
+---
+import Base from '../layouts/Base.astro';
+import Button from '../components/Button.astro';
+import { listProfiles, type Profile } from '../lib/profiles';
+
+const profiles = await listProfiles();
+const nameError = Astro.url.searchParams.get('error') === 'name';
+
+function stage(p: Profile): string {
+  if (!p.photoPath) return 'Photo needed';
+  if (p.sheetApproved) return 'Sheet approved';
+  if (p.sheetStatus === 'ready') return 'Sheet ready';
+  return 'In progress';
+}
+function picture(p: Profile): string | null {
+  if (p.sheetPath) return `/api/p/${p.id}/image/sheet`;
+  if (p.photoPath) return `/api/p/${p.id}/image/photo`;
+  return null;
+}
+const date = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase();
+---
+<Base title="Profiles">
+  <section class="intro" id="start">
+    <div class="copy">
+      <span class="label">Personal style file</span>
+      <h1>One photo. Twelve questions. Clothes that fit you.</h1>
+      <p class="muted">Upload a photo and answer a few questions. Style File builds a character sheet of you, then a palette, fit rules and outfits you can try on.</p>
+      <form method="post" action="/api/profiles" class="start">
+        <label class="field">
+          <span class="label">First name</span>
+          <input class="input" name="name" maxlength="40" required autocomplete="given-name" />
+        </label>
+        <Button variant="primary">Start</Button>
+      </form>
+      {nameError && <p class="error">Enter a first name.</p>}
+    </div>
+    <figure class="example">
+      <img src="/example-sheet.jpg" alt="Example character sheet: one person shown front, side, back and full body" width="896" height="1195" />
+      <figcaption class="label">Example result</figcaption>
+    </figure>
+  </section>
+
+  <div class="countbar">
+    <span>{profiles.length} {profiles.length === 1 ? 'Profile' : 'Profiles'}</span>
+    <span class="muted">Newest first</span>
+  </div>
+
+  {profiles.length === 0
+    ? <p class="muted empty">No profiles yet. Start one above.</p>
+    : (
+      <div class="grid">
+        {profiles.map((p) => {
+          const src = picture(p);
+          return (
+            <a class="card" href={`/p/${p.id}`}>
+              <div class:list={['pic', { empty: !src }]}>{src && <img src={src} alt={`${p.name}`} loading="lazy" />}</div>
+              <span class="label">{stage(p)}</span>
+              <span class="name">{p.name}</span>
+              <span class="sub">{date(p.createdAt)}</span>
+            </a>
+          );
+        })}
+      </div>
+    )}
+</Base>
+
+<style>
+  .intro {
+    display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 48px; align-items: end;
+    padding-bottom: 48px; margin-bottom: 8px; border-bottom: 1px solid var(--line);
+  }
+  .copy { display: flex; flex-direction: column; gap: 16px; max-width: 520px; }
+  .start { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-top: 8px; }
+  .start .field { flex: 1 1 220px; }
+  .example { margin: 0; justify-self: end; max-width: 260px; width: 100%; }
+  .example img { background: var(--surface); }
+  .example figcaption { margin-top: 8px; }
+  .empty { padding: 24px 0; }
+  @media (max-width: 760px) {
+    .intro { grid-template-columns: 1fr; gap: 28px; }
+    .example { justify-self: start; max-width: 300px; }
+  }
+</style>

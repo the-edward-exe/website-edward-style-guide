@@ -1,0 +1,28 @@
+---
+interface Props { right?: { href: string; label: string } }
+const { right = { href: '/#start', label: 'New profile' } } = Astro.props;
+---
+<header class="top">
+  <nav class="left"><a href="/">Profiles</a></nav>
+  <a class="mark" href="/">Style File</a>
+  <nav class="right"><a href={right.href}>{right.label}</a></nav>
+</header>
+
+<style>
+  .top {
+    position: sticky; top: 0; z-index: 10;
+    display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
+    padding: 14px var(--gutter);
+    background: var(--surface); border-bottom: 1px solid var(--line);
+  }
+  nav a {
+    font-size: var(--text-xs); text-transform: uppercase; letter-spacing: var(--track-label);
+    color: var(--ink); opacity: 0.75; text-decoration: none;
+  }
+  nav a:hover { opacity: 1; text-decoration: underline; text-underline-offset: 4px; }
+  .right { justify-self: end; }
+  .mark {
+    font-weight: 600; font-size: 1.15rem; text-transform: uppercase; letter-spacing: 0.22em;
+    text-decoration: none; color: var(--ink);
+  }
+</style>
