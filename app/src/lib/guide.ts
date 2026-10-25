@@ -61,7 +61,7 @@ export function guidePrompt(p: Profile): string {
 
 About them:
 - Shops: ${t('section')}
-- Height ${t('height')}, top size ${t('topSize')}, bottom size ${t('bottomSize')}
+- Height ${t('height')}, shirt size ${t('topSize')}, pant size ${t('bottomSize')}
 - Body shape closest to: ${t('shape')}
 - Wants clothes to: ${t('goals')}
 - Skin tone: swatch ${a.skinTone ?? '?'} of 7${skin ? ` (${skin.hex})` : ''}; wrist veins look ${t('veins')}; ${t('metal')} jewelry suits them

@@ -73,8 +73,8 @@ export const STEPS: Step[] = [
       { key: 'section', kind: 'single', options: opts([['mens', "Men's"], ['womens', "Women's"], ['both', 'Both']]) }] },
     { n: 2, title: 'Height and usual sizes', fields: [
       { key: 'height', kind: 'text', label: 'Height', placeholder: `5'10" or 178 cm` },
-      { key: 'topSize', kind: 'text', label: 'Top size', placeholder: 'M, 40, 10' },
-      { key: 'bottomSize', kind: 'text', label: 'Bottom size', placeholder: '32x30, 8, M' }] },
+      { key: 'topSize', kind: 'text', label: 'Shirt size', placeholder: 'M, 40, 10' },
+      { key: 'bottomSize', kind: 'text', label: 'Pant size', placeholder: '32x30, 8, M' }] },
     { n: 3, title: 'Which shape is closest to yours?', hint: 'Pick two if you are between shapes', fields: [
       { key: 'shape', kind: 'shape', max: 2, options: opts([
         ['inverted-triangle', 'Shoulders wider'], ['pear', 'Hips wider'], ['hourglass', 'Even, defined waist'],
