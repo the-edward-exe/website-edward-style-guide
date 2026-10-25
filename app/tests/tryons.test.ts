@@ -110,7 +110,7 @@ describe('try-on endpoints', () => {
   it('zip holds the latest ready image per outfit, named for download', async () => {
     const id = await guideReady();
     vi.mocked(generateTryon).mockResolvedValue(PNG);
-    for (const o of ['o01', 'o01', 'o02']) await runTryonJob((await createTryon(id, o, 'p')).id);
+    for (const o of ['o01', 'o01', 'o02']) await runTryonJob((await createTryon(id, o, 'p', 1)).id);
     const res = await zipRoute({ params: { id } } as any);
     expect(res.headers.get('Content-Disposition')).toContain('ana-mar-a-dressing-room.zip');
     const files = Object.keys(unzipSync(new Uint8Array(await res.arrayBuffer()))).sort();

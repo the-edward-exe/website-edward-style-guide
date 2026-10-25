@@ -1,4 +1,4 @@
-/* Style File tokens. Colors are the current guide's light palette (spec: Look and feel).
+/* Vestry tokens. Colors are the current guide's light palette (spec: Look and feel).
    Type and shape follow the Fear of God Essentials reference: one condensed sans, no radius, no shadow. */
 :root {
   --bg: #E6E4DF;

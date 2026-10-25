@@ -11,7 +11,7 @@ export const GET: APIRoute = async ({ params }) => {
   if (!profile) return new Response('Not found', { status: 404 });
 
   const latest = new Map<string, { path: string; version: number }>();
-  for (const t of await listTryons(profile.id)) {
+  for (const t of await listTryons(profile.id, profile.guideAttempt)) {
     if (t.status === 'ready' && t.path) latest.set(t.outfitId, { path: t.path, version: t.version });
   }
   const files: Record<string, Uint8Array> = {};

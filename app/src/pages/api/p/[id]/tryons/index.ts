@@ -10,7 +10,7 @@ const Body = z.object({ outfitId: z.string(), prompt: z.string().trim().max(4000
 export const GET: APIRoute = async ({ params }) => {
   const profile = await getProfile(params.id!);
   if (!profile) return new Response('Not found', { status: 404 });
-  return Response.json({ tryons: await listTryons(profile.id) }, { headers: { 'Cache-Control': 'no-store' } });
+  return Response.json({ tryons: await listTryons(profile.id, profile.guideAttempt) }, { headers: { 'Cache-Control': 'no-store' } });
 };
 
 export const POST: APIRoute = async ({ params, request }) => {
@@ -23,7 +23,7 @@ export const POST: APIRoute = async ({ params, request }) => {
   const outfit = body.success ? profile.guide.outfits.find((o) => o.id === body.data.outfitId) : undefined;
   if (!body.success || !outfit) return Response.json({ error: 'UNKNOWN OUTFIT.' }, { status: 400 });
 
-  const tryon = await createTryon(profile.id, outfit.id, body.data.prompt || tryonPrompt(profile, outfit));
+  const tryon = await createTryon(profile.id, outfit.id, body.data.prompt || tryonPrompt(profile, outfit), profile.guideAttempt);
   startTryonJob(tryon.id);
   return Response.json({ tryon });
 };

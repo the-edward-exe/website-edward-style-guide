@@ -18,7 +18,7 @@ const missingStep = profile.sheetApproved ? Number(next.match(/\/q\/(\d)$/)?.[1]
 if (next !== `/p/${profile.id}` && !missingStep) return Astro.redirect(next);
 
 const g = profile.guideStatus === 'ready' ? profile.guide : null;
-const tryons = g ? await listTryons(profile.id) : [];
+const tryons = g ? await listTryons(profile.id, profile.guideAttempt) : [];
 const latestReady = new Map<string, string>();
 for (const t of tryons) if (t.status === 'ready') latestReady.set(t.outfitId, t.id);
 const owned = new Set(profile.capsuleOwned);
@@ -39,9 +39,16 @@ const prompts = g ? Object.fromEntries(g.outfits.map((o) => [o.id, tryonPrompt(p
       </div>
     </div>
     <div class="intro">
-      <span class="label">Style file</span>
+      <span class="label">Vestry</span>
       <h1>{profile.name}</h1>
       {g && <p class="summary">{g.summary}</p>}
+      {g && (
+        <details class="rewrite">
+          <summary class="label link">Rewrite guide</summary>
+          <p class="muted">Writes a new palette, rules and outfits from your current answers. Try-ons from this guide leave the dressing room.</p>
+          <form method="post" action={`/api/p/${profile.id}/guide/regenerate`}><Button variant="primary">Rewrite my guide</Button></form>
+        </details>
+      )}
       {profile.guideStatus === 'pending' && <p class="label pulse" id="guidePending">Writing your guide. This takes about a minute.</p>}
       {profile.guideStatus === 'failed' && (
         <div class="failed">
@@ -347,6 +354,10 @@ const prompts = g ? Object.fromEntries(g.outfits.map((o) => [o.id, tryonPrompt(p
   .intro { display: flex; flex-direction: column; gap: 12px; max-width: 640px; }
   .summary { font-size: var(--text-md); color: var(--ink); }
   .failed { display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
+  .rewrite summary { cursor: pointer; display: inline; list-style: none; }
+  .rewrite summary::-webkit-details-marker { display: none; }
+  .rewrite[open] { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; background: var(--surface); padding: 14px; }
+  .rewrite p { font-size: var(--text-sm); }
   .pulse { animation: pulse 1.6s ease-in-out infinite; }
   @keyframes pulse { 50% { opacity: 0.4; } }
   @media (prefers-reduced-motion: reduce) { .pulse { animation: none; } }

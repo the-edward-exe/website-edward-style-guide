@@ -22,23 +22,23 @@ function toTryon(r: Record<string, any>): Tryon {
 }
 
 /** A new version for this outfit: one more than the highest so far. */
-export async function createTryon(profileId: string, outfitId: string, prompt: string): Promise<Tryon> {
+export async function createTryon(profileId: string, outfitId: string, prompt: string, guideAttempt = 0): Promise<Tryon> {
   // Two clicks at once can pick the same next version; the unique index rejects one, so retry it.
   for (let tries = 0; ; tries++) {
     try {
-      return await insertTryon(profileId, outfitId, prompt);
+      return await insertTryon(profileId, outfitId, prompt, guideAttempt);
     } catch (e: any) {
       if (e?.code !== '23505' || tries >= 4) throw e;
     }
   }
 }
 
-async function insertTryon(profileId: string, outfitId: string, prompt: string): Promise<Tryon> {
+async function insertTryon(profileId: string, outfitId: string, prompt: string, guideAttempt: number): Promise<Tryon> {
   const [r] = await sql`
-    insert into tryons (id, profile_id, outfit_id, version, prompt)
+    insert into tryons (id, profile_id, outfit_id, version, prompt, guide_attempt)
     values (${randomBytes(12).toString('base64url')}, ${profileId}, ${outfitId},
       (select coalesce(max(version), 0) + 1 from tryons where profile_id = ${profileId} and outfit_id = ${outfitId}),
-      ${prompt})
+      ${prompt}, ${guideAttempt})
     returning *`;
   return toTryon(r);
 }
@@ -48,8 +48,12 @@ export async function getTryon(id: string): Promise<Tryon | null> {
   return r ? toTryon(r) : null;
 }
 
-export async function listTryons(profileId: string): Promise<Tryon[]> {
-  return (await sql`select * from tryons where profile_id = ${profileId} order by outfit_id, version`).map(toTryon);
+/** All try-ons for a profile, or only those made for one guide (the dressing room shows the current guide's). */
+export async function listTryons(profileId: string, guideAttempt?: number): Promise<Tryon[]> {
+  const rows = guideAttempt === undefined
+    ? await sql`select * from tryons where profile_id = ${profileId} order by outfit_id, version`
+    : await sql`select * from tryons where profile_id = ${profileId} and guide_attempt = ${guideAttempt} order by outfit_id, version`;
+  return rows.map(toTryon);
 }
 
 export async function finishTryon(id: string, r: { path: string } | { error: string }): Promise<boolean> {

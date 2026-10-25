@@ -1,10 +1,10 @@
-# DESIGN.md — Style File
+# DESIGN.md — Vestry
 
-> The locked design language for the Style File app. Source of truth for taste; `src/styles/tokens.css` is the machine-readable twin.
+> The locked design language for the Vestry app. Source of truth for taste; `src/styles/tokens.css` is the machine-readable twin.
 
 ## Design Read
 
-Reading this as: **a personal styling tool** for **anyone deciding what to wear**, with a **quiet fashion-retail** language, leaning **Fear of God Essentials layout and type over the current Style File earth palette**: Archivo Narrow, stone ground, navy-black ink, tobacco accent, 0px radius, no shadows.
+Reading this as: **a personal styling tool** for **anyone deciding what to wear**, with a **quiet fashion-retail** language, leaning **Fear of God Essentials layout and type over the original Style File guide's earth palette**: Archivo Narrow, stone ground, navy-black ink, tobacco accent, 0px radius, no shadows.
 
 ## The four questions
 
@@ -22,7 +22,7 @@ Reading this as: **a personal styling tool** for **anyone deciding what to wear*
 ## Chosen aesthetic direction
 
 - **Base:** fashion retail collection page (fearofgod.com/collections/essentials-fall-2026).
-- **Twist:** the current Style File's earth palette in place of black and white (Edward's decision).
+- **Twist:** the original Style File guide's earth palette in place of black and white (Edward's decision).
 
 ## Tokens
 

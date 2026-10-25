@@ -39,9 +39,9 @@ Outfits are defined in the `OUTFITS` array in `index.html`. Each piece is:
 
 Store ids map to the `STORES` object in the same file.
 
-## Style File app (local)
+## Vestry (local app)
 
-The `app/` folder holds the multi-person version. Drop one photo, answer 12 questions, and approve a Gemini character sheet. Claude then writes a personal guide (palette, fit and styling rules, capsule, 12 outfits with shop links), and the dressing room puts any outfit on you with Gemini. Every image downloads, and Download all saves the newest try-on of each outfit as a zip. It runs locally in Docker.
+The `app/` folder holds **Vestry**, the multi-person version. Drop one photo, answer 12 questions, and approve a Gemini character sheet. Claude then writes a personal guide (palette, fit and styling rules, capsule, 12 outfits with shop links), and the dressing room puts any outfit on you with Gemini. Every image downloads, and Download all saves the newest try-on of each outfit as a zip. It runs locally in Docker.
 
 1. Copy `.env.example` to `.env` and add your keys:
    - `GEMINI_API_KEY` from https://aistudio.google.com/apikey (character sheets and try-ons, about $0.15 each)
