@@ -13,6 +13,5 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/scripts ./scripts
 COPY --from=build /app/db ./db
-COPY --from=build /app/public ./public
 EXPOSE 4321
 CMD ["sh", "-c", "npm run migrate && npm start"]
