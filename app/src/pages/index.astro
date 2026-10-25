@@ -39,7 +39,10 @@ const date = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: '
     <div class="intro">
       <span class="label">Vestry · Personal style</span>
       <h1>One photo. Twelve questions. Clothes that fit you.</h1>
-      <p class="muted">Get your fit started today.</p>
+      <div class="instructions">
+        <p class="lead">Get your fit started today.</p>
+        <p class="muted">Just drag and drop a photo, and we'll start your personalized Style Guide.</p>
+      </div>
       <div><button type="button" class="start" id="getStarted">Get Started</button></div>
     </div>
   </section>
@@ -148,6 +151,9 @@ const date = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: '
     padding: 15px 28px; border: 0; background: var(--accent); color: var(--accent-ink); cursor: pointer;
   }
   .start:hover { background: #774c32; }
+  .instructions { display: flex; flex-direction: column; gap: 6px; }
+  .instructions .lead { font-size: var(--text-md); color: var(--ink); }
+  .instructions .muted { font-size: var(--text-sm); }
   .drop.nudge { outline: 2px solid var(--accent); outline-offset: -2px; }
   .empty { padding: 12px 0; }
   @media (max-width: 900px) { .hero { grid-template-columns: repeat(2, minmax(0, 1fr)); } .intro { grid-column: span 1; padding-left: 0; } }
