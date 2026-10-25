@@ -2,6 +2,7 @@
 import Base from '../../../layouts/Base.astro';
 import Button from '../../../components/Button.astro';
 import AnswerList from '../../../components/AnswerList.astro';
+import QuizDialog from '../../../components/QuizDialog.astro';
 import { getProfile } from '../../../lib/profiles';
 import { listTryons } from '../../../lib/tryons';
 import { nextPath } from '../../../lib/questionnaire';
@@ -12,7 +13,9 @@ import { tryonPrompt } from '../../../lib/ai/tryon';
 const profile = await getProfile(Astro.params.id!);
 if (!profile) return Astro.rewrite('/404');
 const next = nextPath(profile);
-if (next !== `/p/${profile.id}`) return Astro.redirect(next);
+// Once the sheet is approved this page is home; a missing answer opens the edit pop-up here.
+const missingStep = profile.sheetApproved ? Number(next.match(/\/q\/(\d)$/)?.[1] ?? 0) : 0;
+if (next !== `/p/${profile.id}` && !missingStep) return Astro.redirect(next);
 
 const g = profile.guideStatus === 'ready' ? profile.guide : null;
 const tryons = g ? await listTryons(profile.id) : [];
@@ -23,6 +26,7 @@ const stores = Object.fromEntries(Object.entries(STORES).map(([k, s]) => [k, { n
 const occasions = ['All', 'Work', 'Weekend', 'Evening', 'Travel'];
 const seasons = ['All', 'Spring', 'Summer', 'Fall', 'Winter'];
 const demo = aiMode();
+const editStep = Number(Astro.url.searchParams.get('edit')) || missingStep;
 const prompts = g ? Object.fromEntries(g.outfits.map((o) => [o.id, tryonPrompt(profile, o)])) : {};
 ---
 <Base title={profile.name}>
@@ -134,6 +138,8 @@ const prompts = g ? Object.fromEntries(g.outfits.map((o) => [o.id, tryonPrompt(p
     <summary class="label">Your answers</summary>
     <AnswerList profile={profile} />
   </details>
+
+  <QuizDialog mode="edit" profileId={profile.id} answers={profile.answers} startStep={editStep || 1} autoOpen={editStep > 0} />
 
   <details class="danger">
     <summary class="label">Delete profile</summary>

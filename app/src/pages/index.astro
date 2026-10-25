@@ -1,11 +1,16 @@
 ---
 import Base from '../layouts/Base.astro';
-import Button from '../components/Button.astro';
-import Questions from '../components/Questions.astro';
-import { listProfiles, type Profile } from '../lib/profiles';
-import { STEPS } from '../lib/questionnaire';
+import QuizDialog from '../components/QuizDialog.astro';
+import { listProfiles, getProfile, type Profile } from '../lib/profiles';
+import { STEPS, stepComplete, prefillFromRead } from '../lib/questionnaire';
 
 const profiles = await listProfiles();
+
+// ?resume=<id> reopens that profile's questionnaire pop-up at its first unanswered step (or ?step=).
+const resume = await getProfile(Astro.url.searchParams.get('resume') ?? '');
+const resumeStep = Number(Astro.url.searchParams.get('step'))
+  || STEPS.find((s) => resume && !stepComplete(resume.answers, s.n))?.n || 1;
+const resumeAnswers = resume ? { ...prefillFromRead(resume.answers, resume.photoRead), ...resume.answers } : {};
 
 function stage(p: Profile): string {
   if (!p.photoPath) return 'Photo needed';
@@ -59,28 +64,9 @@ const date = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: '
     ))}
   </div>
 
-  <dialog id="quiz" aria-labelledby="quizTitle">
-    <div class="qhead">
-      <div>
-        <span class="label" id="quizStep">Step 1 of 4</span>
-        <h2 id="quizTitle" tabindex="-1" autofocus>{STEPS[0].title}</h2>
-      </div>
-      <button class="close label" type="button" id="later">Finish later</button>
-    </div>
-    <div class="progress" aria-hidden="true">{STEPS.map((s) => <span data-n={s.n} />)}</div>
-    <p class="label read" id="readNote"></p>
-    <p class="error" id="quizError"></p>
-
-    {STEPS.map((s) => (
-      <form class="qstep" data-step={s.n} data-title={s.title} hidden={s.n !== 1}>
-        <Questions step={s} />
-        <div class="qactions">
-          {s.n > 1 ? <button class="back label" type="button" data-back>Back</button> : <span />}
-          <Button variant="primary">{s.n === 4 ? 'See my sheet' : 'Next'}</Button>
-        </div>
-      </form>
-    ))}
-  </dialog>
+  {resume
+    ? <QuizDialog mode="resume" profileId={resume.id} answers={resumeAnswers} startStep={resumeStep} />
+    : <QuizDialog mode="new" />}
 </Base>
 
 <script>
@@ -90,10 +76,6 @@ const date = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: '
   const fileInput = $<HTMLInputElement>('file');
   const preview = $<HTMLImageElement>('preview');
   const dropError = $('dropError');
-  const quiz = $<HTMLDialogElement>('quiz');
-  const quizError = $('quizError');
-  const readNote = $('readNote');
-  const forms = [...document.querySelectorAll<HTMLFormElement>('.qstep')];
 
   let profileId: string | null = null;
   let pendingFile: File | null = null;
@@ -133,7 +115,7 @@ const date = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: '
       const up = await postJson(`/api/p/${profileId}/photo`, body);
       if (!up?.ok) throw new Error(up?.error ?? 'UPLOAD FAILED. TRY AGAIN.');
       $('dropLabel').textContent = 'Building your character sheet';
-      openQuiz();
+      document.dispatchEvent(new CustomEvent('quiz:open', { detail: { id: profileId, step: 1, readPhoto: true } }));
     } catch (e) {
       dropError.textContent = (e as Error).message;
     } finally {
@@ -141,70 +123,6 @@ const date = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: '
       drop.classList.remove('busy');
     }
   }
-
-  function showStep(n: number) {
-    forms.forEach((f) => (f.hidden = Number(f.dataset.step) !== n));
-    const form = forms[n - 1];
-    $('quizStep').textContent = `Step ${n} of 4`;
-    $('quizTitle').textContent = form.dataset.title!;
-    document.querySelectorAll<HTMLElement>('.progress span').forEach((s) => s.classList.toggle('on', Number(s.dataset.n) <= n));
-    readNote.hidden = n !== 2;
-    quizError.textContent = '';
-    quiz.scrollTop = 0;
-  }
-
-  function openQuiz() {
-    showStep(1);
-    if (!quiz.open) quiz.showModal();
-    pollPhotoRead();
-  }
-
-  // Fill coloring from Claude's photo read, only where nothing is chosen yet.
-  async function pollPhotoRead() {
-    readNote.textContent = 'Reading your photo…';
-    while (true) {
-      const s = await fetch(`/api/p/${profileId}/status`).then((r) => r.json()).catch(() => null);
-      if (s && s.photoReadStatus !== 'pending') {
-        let filled = false;
-        const r = s.photoRead;
-        if (r) {
-          const tone = [...document.querySelectorAll<HTMLInputElement>('#quiz input[name=skinTone]')];
-          if (!tone.some((t) => t.checked)) tone.forEach((t) => { if (t.value === String(r.skinTone)) { t.checked = true; filled = true; } });
-          for (const k of ['hair', 'eyes']) {
-            const el = document.querySelector<HTMLInputElement>(`#quiz input[name=${k}]`);
-            if (el && !el.value) { el.value = r[k]; filled = true; }
-          }
-        }
-        readNote.textContent = filled ? 'From your photo. Change if wrong.' : '';
-        return;
-      }
-      await new Promise((res) => setTimeout(res, 2000));
-    }
-  }
-
-  forms.forEach((form) => {
-    const n = Number(form.dataset.step);
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      form.querySelectorAll('.q').forEach((q) => q.classList.remove('bad'));
-      const out = await postJson(`/api/p/${profileId}/answers?step=${n}`, new FormData(form));
-      if (!out) { quizError.textContent = 'Could not save. Try again.'; return; }
-      if (!out.ok) {
-        quizError.textContent = 'Answer every question to continue.';
-        form.querySelectorAll<HTMLElement>('.q').forEach((q) => {
-          if (q.dataset.keys!.split(',').some((k) => out.missing.includes(k))) q.classList.add('bad');
-        });
-        return;
-      }
-      if (n === 4) location.href = out.next;
-      else showStep(n + 1);
-    });
-    form.querySelector('[data-back]')?.addEventListener('click', () => showStep(n - 1));
-  });
-
-  // "Finish later" keeps everything saved; the card on the home screen picks up where they left off.
-  $('later').addEventListener('click', () => { quiz.close(); location.reload(); });
-  quiz.addEventListener('cancel', (e) => e.preventDefault());
 
   fileInput.addEventListener('change', () => fileInput.files?.[0] && start(fileInput.files[0]));
   ['dragenter', 'dragover'].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.add('over'); }));
@@ -232,23 +150,4 @@ const date = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: '
   .strong { color: var(--ink); font-size: var(--text-sm); }
   .card .error:empty { display: none; }
 
-  dialog {
-    width: min(760px, calc(100vw - 32px)); max-height: 88vh; padding: 28px 32px 24px;
-    border: 0; border-radius: var(--radius); background: var(--bg); color: var(--ink);
-    overflow-y: auto; margin: auto;
-  }
-  dialog::backdrop { background: rgb(29 41 56 / 0.55); }
-  .qhead { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
-  .qhead h2 { font-size: var(--text-lg); margin-top: 6px; outline: none; }
-  .close { background: none; border: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 4px; padding: 4px 0; font-family: var(--font); }
-  .close:hover { color: var(--ink); }
-  .progress { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin: 14px 0 6px; }
-  .progress span { height: 2px; background: var(--line); }
-  .progress span.on { background: var(--ink); }
-  .read { color: var(--ok); min-height: 1em; margin: 6px 0; }
-  #quizError:empty { display: none; }
-  .qactions { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--line); padding-top: 18px; }
-  .back { background: none; border: 0; cursor: pointer; font-family: var(--font); }
-  .back:hover { color: var(--ink); text-decoration: underline; }
-  @media (max-width: 560px) { dialog { padding: 20px 16px; max-height: 92vh; } }
 </style>

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { sql } from '../src/lib/db';
-import { createProfile, getProfile, setPhoto } from '../src/lib/profiles';
+import { createProfile, getProfile, setPhoto, saveAnswers } from '../src/lib/profiles';
 import { POST as createRoute } from '../src/pages/api/profiles';
 import { POST as answersRoute } from '../src/pages/api/p/[id]/answers';
 
@@ -38,9 +38,21 @@ describe('home page JSON calls', () => {
   it('says where to go after the last step', async () => {
     const p = await createProfile('Ana');
     await setPhoto(p.id, '/x.jpg');
+    await saveAnswers(p.id, { section: 'mens', height: '6ft', topSize: 'M', bottomSize: '32', shape: 'pear', goals: ['comfort'], skinTone: 3, veins: 'blue', metal: 'gold', hair: 'brown', eyes: 'brown', styles: ['minimal'], avoid: ['none'] });
     const url = `/api/p/${p.id}/answers?step=4`;
     const fields: [string, string][] = [['dressCode', 'remote'], ['location', 'Austin'], ['budget', '$$']];
     const res = await answersRoute({ params: { id: p.id }, url: new URL(`http://localhost${url}`), request: jsonForm(url, fields) } as any);
     expect(await res.json()).toEqual({ ok: true, next: `/p/${p.id}/sheet` });
+  });
+});
+
+describe('finishing the questionnaire out of order', () => {
+  it('sends the person to the first unanswered step, not the sheet', async () => {
+    const p = await createProfile('Ana');
+    await setPhoto(p.id, '/x.jpg');
+    const url = `/api/p/${p.id}/answers?step=4`;
+    const fields: [string, string][] = [['dressCode', 'remote'], ['location', 'Austin'], ['budget', '$$']];
+    const res = await answersRoute({ params: { id: p.id }, url: new URL(`http://localhost${url}`), request: jsonForm(url, fields) } as any);
+    expect(await res.json()).toEqual({ ok: true, next: `/p/${p.id}/q/1` });
   });
 });

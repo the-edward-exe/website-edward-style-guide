@@ -19,7 +19,7 @@ const skinHex = SKIN_SWATCHES.find((s) => s.tone === Number(a.skinTone))?.hex;
   <div class="agroup">
     <div class="ghead">
       <h3 class="label">{s.title}</h3>
-      <a class="label link" href={`/p/${profile.id}/q/${s.n}`}>Edit</a>
+      <button type="button" class="label link edit" data-edit-step={s.n}>Edit</button>
     </div>
     <dl>
       {s.questions.flatMap((q) => q.fields.map((f) => ({ q, f }))).map(({ q, f }) => {
@@ -48,4 +48,5 @@ const skinHex = SKIN_SWATCHES.find((s) => s.tone === Number(a.skinTone))?.hex;
   dd { margin: 0; font-size: var(--text-sm); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .chipcolor { display: inline-block; width: 16px; height: 16px; border: 1px solid var(--line); }
   .link { text-decoration: underline; text-underline-offset: 4px; }
+  .edit { background: none; border: 0; cursor: pointer; font-family: var(--font); padding: 0; }
 </style>
