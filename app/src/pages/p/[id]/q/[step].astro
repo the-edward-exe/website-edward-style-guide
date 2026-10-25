@@ -5,5 +5,6 @@ import { getProfile } from '../../../../lib/profiles';
 const profile = await getProfile(Astro.params.id!);
 if (!profile) return Astro.rewrite('/404');
 if (profile.sheetApproved) return Astro.redirect(`/p/${profile.id}?edit=${Number(Astro.params.step) || 1}`);
-return Astro.redirect(`/?resume=${profile.id}&step=${Number(Astro.params.step) || 1}`);
+const step = Astro.params.step === '0' ? 0 : Number(Astro.params.step) || 1;
+return Astro.redirect(`/?resume=${profile.id}&step=${step}`);
 ---

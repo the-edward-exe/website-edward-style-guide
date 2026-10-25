@@ -147,7 +147,7 @@ export function prefillFromRead(answers: Partial<Answers>, read: PhotoRead | nul
 }
 
 export function nextPath(p: Profile): string {
-  if (!p.photoPath) return `/p/${p.id}/photo`;
+  if (!p.photoPath) return `/p/${p.id}/q/0`; // the pop-up's photo step
   const open = STEPS.find((s) => !stepComplete(p.answers, s.n));
   if (open) return `/p/${p.id}/q/${open.n}`;
   if (!p.sheetApproved) return `/p/${p.id}/sheet`;
