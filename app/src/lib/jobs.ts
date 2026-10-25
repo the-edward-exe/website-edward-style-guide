@@ -3,6 +3,8 @@ import { readImage, saveImage } from './storage';
 import { generateCharacterSheet } from './ai/gemini';
 import { readPhoto } from './ai/claude';
 import { generateGuide } from './ai/guide';
+import { generateTryon } from './ai/tryon';
+import { getTryon, finishTryon } from './tryons';
 
 const message = (e: unknown) => (e instanceof Error ? e.message : 'SOMETHING WENT WRONG. TRY AGAIN.');
 
@@ -74,6 +76,30 @@ export async function runGuideJob(id: string, attempt: number): Promise<void> {
   } catch (e) {
     console.error('guide job failed', e);
   }
+}
+
+export async function runTryonJob(tryonId: string): Promise<void> {
+  try {
+    const t = await getTryon(tryonId);
+    const p = t && (await getProfile(t.profileId));
+    if (!t || !p?.sheetPath) return;
+    let image: Buffer;
+    try {
+      image = await generateTryon(await readImage(p.sheetPath), t.prompt);
+    } catch (e) {
+      await finishTryon(t.id, { error: message(e) });
+      return;
+    }
+    // The profile may have been deleted while Gemini worked; write nothing then.
+    if (!(await getTryon(t.id))) return;
+    await finishTryon(t.id, { path: await saveImage(t.profileId, 'tryon', image) });
+  } catch (e) {
+    console.error('try-on job failed', e);
+  }
+}
+
+export function startTryonJob(tryonId: string): void {
+  void runTryonJob(tryonId);
 }
 
 export function startGuideJob(id: string, attempt: number): void {

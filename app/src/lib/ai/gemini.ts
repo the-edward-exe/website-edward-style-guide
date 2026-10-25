@@ -14,12 +14,18 @@ export async function generateCharacterSheet(photo: Buffer): Promise<Buffer> {
     await new Promise((r) => setTimeout(r, Number(process.env.DEMO_DELAY_MS ?? 3000)));
     return demoSheet();
   }
+  return geminiImage(CHARACTER_SHEET_PROMPT, photo, 'NO IMAGE CAME BACK. TRY ANOTHER PHOTO.');
+}
+
+/** One Gemini image call: a text prompt plus one reference image, returns the generated image bytes. */
+export async function geminiImage(prompt: string, reference: Buffer, noImageMessage: string): Promise<Buffer> {
   const model = process.env.GEMINI_MODEL || 'gemini-3-pro-image-preview';
+  const mime = reference[0] === 0x89 ? 'image/png' : 'image/jpeg';
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY! },
     body: JSON.stringify({
-      contents: [{ role: 'user', parts: [{ text: CHARACTER_SHEET_PROMPT }, { inline_data: { mime_type: 'image/jpeg', data: photo.toString('base64') } }] }],
+      contents: [{ role: 'user', parts: [{ text: prompt }, { inline_data: { mime_type: mime, data: reference.toString('base64') } }] }],
       generationConfig: { responseModalities: ['TEXT', 'IMAGE'], imageConfig: { aspectRatio: '3:4', imageSize: '2K' } },
     }),
     signal: AbortSignal.timeout(120_000),
@@ -28,6 +34,6 @@ export async function generateCharacterSheet(photo: Buffer): Promise<Buffer> {
   if (!res.ok) throw new Error(json.error?.message ?? `GOOGLE RETURNED ${res.status}.`);
   const parts: any[] = json.candidates?.[0]?.content?.parts ?? [];
   const img = parts.find((p) => p.inlineData || p.inline_data);
-  if (!img) throw new Error('NO IMAGE CAME BACK. TRY ANOTHER PHOTO.');
+  if (!img) throw new Error(noImageMessage);
   return Buffer.from((img.inlineData ?? img.inline_data).data, 'base64');
 }

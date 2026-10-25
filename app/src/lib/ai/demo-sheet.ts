@@ -32,6 +32,17 @@ export function demoSheetSvg(): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">${parts.join('')}</svg>`;
 }
 
+/** Demo try-on: a plain gray figure outline, never a real person. */
+export function demoTryon(): Promise<Buffer> {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
+    <rect width="${W}" height="${H}" fill="#F3F2EE"/>
+    <circle cx="600" cy="300" r="90" fill="#DAD7D0"/>
+    <path d="M440 420 H760 L800 900 L720 900 L700 1450 L620 1450 L600 1000 L580 1450 L500 1450 L480 900 L400 900 Z" fill="#DAD7D0"/>
+    ${label(W / 2, H - 36, 'DEMO MODE · ADD GEMINI_API_KEY FOR A REAL TRY-ON')}
+  </svg>`;
+  return sharp(Buffer.from(svg)).png().toBuffer();
+}
+
 export function demoSheet(): Promise<Buffer> {
   return sharp(Buffer.from(demoSheetSvg())).png().toBuffer();
 }
