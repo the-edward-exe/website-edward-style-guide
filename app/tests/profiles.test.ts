@@ -3,7 +3,7 @@ import { sql } from '../src/lib/db';
 import { newProfileId } from '../src/lib/ids';
 import {
   createProfile, getProfile, listProfiles, saveAnswers,
-  setPhoto, finishSheet, deleteProfile,
+  setPhoto, finishSheet, deleteProfile, retrySheet,
 } from '../src/lib/profiles';
 
 beforeEach(async () => { await sql`truncate profiles`; });
@@ -40,6 +40,13 @@ describe('profiles', () => {
     await setPhoto(p.id, '/x/photo-2.jpg');
     expect(await finishSheet(p.id, first, { path: '/x/sheet-1.png' })).toBe(false);
     expect((await getProfile(p.id))?.sheetStatus).toBe('pending');
+  });
+
+  it('a sheet retry does not leave the photo read stuck pending', async () => {
+    const p = await createProfile('Ana');
+    await setPhoto(p.id, '/x/photo.jpg');
+    await retrySheet(p.id);
+    expect((await getProfile(p.id))?.photoReadStatus).toBe('failed');
   });
 
   it('returns null for an unknown id', async () => {

@@ -86,7 +86,9 @@ export async function finishPhotoRead(id: string, attempt: number, read: PhotoRe
 export async function retrySheet(id: string): Promise<number> {
   const [r] = await sql`
     update profiles set attempt = attempt + 1, sheet_status = 'pending', sheet_path = null,
-      sheet_error = null, sheet_approved = false
+      sheet_error = null, sheet_approved = false,
+      -- the bumped attempt drops an in-flight photo read, so stop step 2 waiting on it
+      photo_read_status = case when photo_read_status = 'pending' then 'failed' else photo_read_status end
     where id = ${id} returning attempt`;
   return r.attempt;
 }

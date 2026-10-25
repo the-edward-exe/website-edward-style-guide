@@ -18,6 +18,10 @@ describe('normalizePhoto', () => {
     );
   });
 
+  it('rejects a corrupt or truncated photo with the plain message', async () => {
+    await expect(normalizePhoto(await fixture('truncated.jpg'))).rejects.toThrow(PhotoError);
+  });
+
   it('rejects a photo over 25 MB', async () => {
     await expect(normalizePhoto(Buffer.alloc(26 * 1024 * 1024))).rejects.toThrow('PHOTO IS OVER 25 MB.');
   });

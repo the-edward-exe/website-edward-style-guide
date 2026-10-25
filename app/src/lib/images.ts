@@ -14,9 +14,14 @@ export async function normalizePhoto(buf: Buffer): Promise<Buffer> {
     format = undefined;
   }
   if (!format || !ACCEPTED.has(format)) throw new PhotoError('USE A JPG, PNG OR WEBP PHOTO.');
-  return sharp(buf)
-    .rotate()
-    .resize({ width: 2048, height: 2048, fit: 'inside', withoutEnlargement: true })
-    .jpeg({ quality: 90 })
-    .toBuffer();
+  try {
+    return await sharp(buf)
+      .rotate()
+      .resize({ width: 2048, height: 2048, fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 90 })
+      .toBuffer();
+  } catch {
+    // A readable header with a damaged body (half-synced or truncated file).
+    throw new PhotoError("THAT PHOTO COULDN'T BE READ. TRY ANOTHER.");
+  }
 }
