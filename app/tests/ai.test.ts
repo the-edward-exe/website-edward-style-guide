@@ -35,3 +35,14 @@ describe('generateCharacterSheet (live)', () => {
     await expect(generateCharacterSheet(Buffer.from([1]))).rejects.toThrow('API key not valid');
   });
 });
+
+describe('generateCharacterSheet (demo)', () => {
+  it('returns a plain placeholder layout, not a photo', async () => {
+    vi.stubEnv('GEMINI_API_KEY', '');
+    vi.stubEnv('DEMO_DELAY_MS', '0');
+    const sharp = (await import('sharp')).default;
+    const meta = await sharp(await generateCharacterSheet(Buffer.from([1]))).metadata();
+    expect(meta.format).toBe('png');
+    expect([meta.width, meta.height]).toEqual([1200, 1600]);
+  });
+});

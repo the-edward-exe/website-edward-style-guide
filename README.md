@@ -49,7 +49,7 @@ The `app/` folder holds the multi-person version: upload one photo, answer 12 qu
 2. Run `docker compose up --build` in the repo root.
 3. Open http://localhost:4321.
 
-Without a key, that feature runs in demo mode: the character sheet is the example sheet, and the coloring questions start blank.
+Without a key, that feature runs in demo mode: the character sheet is a plain gray placeholder in the sheet layout, and the coloring questions start blank.
 
 Data lives in two Docker volumes: `pgdata` (profiles and answers) and `photos` (uploads and sheets). `docker compose down` keeps them; `docker compose down -v` deletes everything.
 
