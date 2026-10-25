@@ -35,7 +35,7 @@ describe('questionnaire', () => {
 
   it('routes to the first incomplete step', () => {
     expect(nextPath({ ...base, answers: { ...step1, ...step2 } })).toBe(`/p/${base.id}/q/3`);
-    expect(nextPath({ ...base, photoPath: null })).toBe(`/p/${base.id}/q/0`);
+    expect(nextPath({ ...base, photoPath: null })).toBe(`/p/${base.id}/photo`);
   });
 });
 

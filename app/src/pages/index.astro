@@ -8,8 +8,8 @@ const profiles = await listProfiles();
 
 // ?resume=<id> reopens that profile's questionnaire pop-up at its first unanswered step (or ?step=).
 const resume = await getProfile(Astro.url.searchParams.get('resume') ?? '');
-const resumeStep = resume && !resume.photoPath ? 0 // no photo yet: the pop-up's photo step
-  : Number(Astro.url.searchParams.get('step')) || STEPS.find((s) => resume && !stepComplete(resume.answers, s.n))?.n || 1;
+const resumeStep = Number(Astro.url.searchParams.get('step'))
+  || STEPS.find((s) => resume && !stepComplete(resume.answers, s.n))?.n || 1;
 const resumeAnswers = resume ? { ...prefillFromRead(resume.answers, resume.photoRead), ...resume.answers } : {};
 
 function stage(p: Profile): string {
@@ -80,6 +80,7 @@ const date = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: '
 
   let profileId: string | null = null;
   let busy = false;
+  let photoReady = false;
 
   async function postJson(url: string, body: FormData) {
     const res = await fetch(url, { method: 'POST', body, headers: { Accept: 'application/json' } }).catch(() => null);
@@ -104,8 +105,8 @@ const date = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: '
       body.append('photo', file);
       const up = await postJson(`/api/p/${profileId}/photo`, body);
       if (!up?.ok) throw new Error(up?.error ?? 'UPLOAD FAILED. TRY AGAIN.');
-      $('dropLabel').textContent = 'Building your character sheet';
-      document.dispatchEvent(new CustomEvent('quiz:open', { detail: { id: profileId, step: 1, readPhoto: true } }));
+      photoReady = true;
+      $('dropLabel').textContent = 'Photo ready. Press Get Started.';
     } catch (e) {
       dropError.textContent = (e as Error).message;
     } finally {
@@ -120,18 +121,16 @@ const date = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: '
   drop.addEventListener('drop', (e) => { const f = (e as DragEvent).dataTransfer?.files?.[0]; if (f) start(f); });
   window.addEventListener('dragover', (e) => e.preventDefault());
   window.addEventListener('drop', (e) => e.preventDefault());
-  // Get Started opens the questionnaire pop-up right away; its first screen takes the photo.
-  $('getStarted').addEventListener('click', async () => {
-    const btn = $<HTMLButtonElement>('getStarted');
+  // Get Started opens the questionnaire pop-up once the photo is in.
+  $('getStarted').addEventListener('click', () => {
     if (busy) return;
-    busy = true;
-    btn.disabled = true;
-    const created = profileId ? { ok: true, id: profileId } : await postJson('/api/profiles', new FormData());
-    busy = false;
-    btn.disabled = false;
-    if (!created?.ok) { dropError.textContent = 'COULD NOT START. TRY AGAIN.'; return; }
-    profileId = created.id;
-    document.dispatchEvent(new CustomEvent('quiz:open', { detail: { id: profileId, step: 0 } }));
+    if (!photoReady) {
+      dropError.textContent = 'Drop your photo first.';
+      drop.classList.add('nudge');
+      setTimeout(() => drop.classList.remove('nudge'), 1200);
+      return;
+    }
+    document.dispatchEvent(new CustomEvent('quiz:open', { detail: { id: profileId, step: 1, readPhoto: true } }));
   });
 </script>
 
@@ -149,6 +148,7 @@ const date = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: '
     padding: 15px 28px; border: 0; background: var(--accent); color: var(--accent-ink); cursor: pointer;
   }
   .start:hover { background: #774c32; }
+  .drop.nudge { outline: 2px solid var(--accent); outline-offset: -2px; }
   .empty { padding: 12px 0; }
   @media (max-width: 900px) { .hero { grid-template-columns: repeat(2, minmax(0, 1fr)); } .intro { grid-column: span 1; padding-left: 0; } }
   @media (max-width: 560px) { .hero { grid-template-columns: 1fr; } .intro { order: -1; } }

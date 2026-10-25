@@ -1,6 +1,6 @@
 ---
 // The personal style questionnaire. Every question is answered here, in a centered pop-up:
-//   new    - opened by the home page after a photo drop (profile id arrives then)
+//   new    - opened by Get Started on the home page once the photo is dropped
 //   resume - opened on load at the first unanswered step
 //   edit   - opened from the guide's Edit links, one step at a time, then saved
 import Button from './Button.astro';
@@ -31,25 +31,6 @@ const firstName = name === NEW_PROFILE_NAME ? '' : name;
   <p class="label read" id="readNote"></p>
   <p class="error" id="quizError"></p>
 
-  {mode !== 'edit' && (
-    <form class="qstep" data-step="0" data-title="YOUR PHOTO" hidden>
-      <div class="photostep">
-        <label class="qdrop" id="qDrop">
-          <img id="qPreview" alt="" hidden />
-          <span class="qprompt" id="qPrompt">
-            <span class="label strong">Drop your photo here</span>
-            <span class="label">or click to browse · JPG, PNG or WebP</span>
-          </span>
-          <input id="qFile" type="file" accept="image/jpeg,image/png,image/webp" />
-        </label>
-        <div class="photohelp">
-          <p class="label">Front. Full body. Daylight. Plain background.</p>
-          <p class="muted">Vestry builds a character sheet of you from this one photo, and reads your coloring for step 2.</p>
-        </div>
-      </div>
-    </form>
-  )}
-
   {STEPS.map((s) => (
     <form class="qstep" data-step={s.n} data-title={s.title} hidden>
       {s.n === 1 && (
@@ -79,7 +60,7 @@ const firstName = name === NEW_PROFILE_NAME ? '' : name;
 
     const showStep = (n: number) => {
       forms.forEach((f) => (f.hidden = Number(f.dataset.step) !== n));
-      $('quizStep').textContent = mode === 'edit' ? 'Edit answers' : n === 0 ? 'Start here' : `Step ${n} of 4`;
+      $('quizStep').textContent = mode === 'edit' ? 'Edit answers' : `Step ${n} of 4`;
       $('quizTitle').textContent = forms.find((f) => Number(f.dataset.step) === n)!.dataset.title!;
       quiz.querySelectorAll<HTMLElement>('.progress span').forEach((s) => s.classList.toggle('on', Number(s.dataset.n) <= n));
       $('readNote').hidden = n !== 2;
@@ -144,37 +125,6 @@ const firstName = name === NEW_PROFILE_NAME ? '' : name;
       form.querySelector('[data-back]')?.addEventListener('click', () => showStep(n - 1));
     });
 
-    // Photo step: upload on drop or pick, then move on to step 1 while the sheet builds.
-    const qDrop = document.getElementById('qDrop');
-    const qFile = document.getElementById('qFile') as HTMLInputElement | null;
-    const uploadPhoto = async (file: File) => {
-      const preview = $('qPreview') as HTMLImageElement;
-      preview.src = URL.createObjectURL(file);
-      preview.hidden = false;
-      $('qPrompt').hidden = true;
-      $('quizError').textContent = '';
-      qDrop!.classList.add('busy');
-      const body = new FormData();
-      body.append('photo', file);
-      const res = await fetch(`/api/p/${profileId}/photo`, { method: 'POST', body, headers: { Accept: 'application/json' } }).catch(() => null);
-      const out = res ? await res.json().catch(() => null) : null;
-      qDrop!.classList.remove('busy');
-      if (!out?.ok) {
-        $('quizError').textContent = out?.error ?? 'UPLOAD FAILED. TRY AGAIN.';
-        preview.hidden = true;
-        $('qPrompt').hidden = false;
-        return;
-      }
-      showStep(1);
-      pollPhotoRead();
-    };
-    if (qDrop && qFile) {
-      qFile.addEventListener('change', () => qFile.files?.[0] && uploadPhoto(qFile.files[0]));
-      ['dragenter', 'dragover'].forEach((t) => qDrop.addEventListener(t, (e) => { e.preventDefault(); qDrop.classList.add('over'); }));
-      ['dragleave', 'drop'].forEach((t) => qDrop.addEventListener(t, (e) => { e.preventDefault(); qDrop.classList.remove('over'); }));
-      qDrop.addEventListener('drop', (e) => { const f = (e as DragEvent).dataTransfer?.files?.[0]; if (f) uploadPhoto(f); });
-    }
-
     // Closing keeps every saved step. Resume returns to a clean home screen.
     $('quizClose').addEventListener('click', () => {
       quiz.close();
@@ -193,7 +143,7 @@ const firstName = name === NEW_PROFILE_NAME ? '' : name;
       const b = (e.target as HTMLElement).closest<HTMLElement>('[data-edit-step]');
       if (b) open(profileId, Number(b.dataset.editStep));
     });
-    if (quiz.dataset.auto) open(profileId, Number(quiz.dataset.start ?? 1));
+    if (quiz.dataset.auto) open(profileId, Number(quiz.dataset.start) || 1);
   }
 </script>
 
@@ -204,20 +154,6 @@ const firstName = name === NEW_PROFILE_NAME ? '' : name;
     overflow-y: auto; margin: auto;
   }
   .quiz::backdrop { background: rgb(29 41 56 / 0.55); }
-  .photostep { display: grid; grid-template-columns: minmax(0, 260px) minmax(0, 1fr); gap: 24px; align-items: center; padding: 22px 0 8px; border-top: 1px solid var(--line); margin-top: 8px; }
-  .qdrop {
-    position: relative; aspect-ratio: 3 / 4; display: flex; align-items: center; justify-content: center; text-align: center;
-    background: var(--chip); cursor: pointer; overflow: hidden; outline: 1px dashed var(--muted); outline-offset: -10px;
-  }
-  .qdrop:hover, .qdrop.over { outline: 2px solid var(--ink); outline-offset: -2px; }
-  .qdrop.busy img { opacity: 0.5; }
-  .qdrop img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-  .qdrop input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-  .qprompt { display: flex; flex-direction: column; gap: 6px; padding: 0 16px; }
-  .strong { color: var(--ink); font-size: var(--text-sm); }
-  .photohelp { display: flex; flex-direction: column; gap: 10px; }
-  .photohelp p { font-size: var(--text-sm); }
-  @media (max-width: 560px) { .photostep { grid-template-columns: 1fr; } }
   .qhead { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
   .qhead h2 { font-size: var(--text-lg); margin-top: 6px; outline: none; }
   .close { background: none; border: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 4px; padding: 4px 0; font-family: var(--font); }
