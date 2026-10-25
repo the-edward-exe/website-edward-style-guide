@@ -1,2 +1,59 @@
-// Replaced in Task 5 with the Gemini sheet and Claude photo-read jobs.
-export function startPhotoJobs(_id: string, _attempt: number): void {}
+import { getProfile, finishSheet, finishPhotoRead } from './profiles';
+import { readImage, saveImage } from './storage';
+import { generateCharacterSheet } from './ai/gemini';
+import { readPhoto } from './ai/claude';
+
+const message = (e: unknown) => (e instanceof Error ? e.message : 'SOMETHING WENT WRONG. TRY AGAIN.');
+
+async function currentPhoto(id: string, attempt: number): Promise<Buffer | null> {
+  const p = await getProfile(id);
+  if (!p || p.attempt !== attempt || !p.photoPath) return null;
+  return readImage(p.photoPath);
+}
+
+async function stillCurrent(id: string, attempt: number): Promise<boolean> {
+  return (await getProfile(id))?.attempt === attempt;
+}
+
+export async function runSheetJob(id: string, attempt: number): Promise<void> {
+  try {
+    const photo = await currentPhoto(id, attempt);
+    if (!photo) return;
+    let sheet: Buffer;
+    try {
+      sheet = await generateCharacterSheet(photo);
+    } catch (e) {
+      await finishSheet(id, attempt, { error: message(e) });
+      return;
+    }
+    if (!(await stillCurrent(id, attempt))) return;
+    await finishSheet(id, attempt, { path: await saveImage(id, 'sheet', sheet) });
+  } catch (e) {
+    console.error('sheet job failed', e);
+  }
+}
+
+export async function runPhotoReadJob(id: string, attempt: number): Promise<void> {
+  try {
+    const photo = await currentPhoto(id, attempt);
+    if (!photo) return;
+    let read = null;
+    try {
+      read = await readPhoto(photo);
+    } catch (e) {
+      console.error('photo read failed', message(e));
+    }
+    await finishPhotoRead(id, attempt, read);
+  } catch (e) {
+    console.error('photo read job failed', e);
+  }
+}
+
+export function startSheetJob(id: string, attempt: number): void {
+  void runSheetJob(id, attempt);
+}
+
+export function startPhotoJobs(id: string, attempt: number): void {
+  void runSheetJob(id, attempt);
+  void runPhotoReadJob(id, attempt);
+}
