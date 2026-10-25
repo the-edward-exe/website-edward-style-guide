@@ -34,10 +34,6 @@ const date = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: '
       </form>
       {nameError && <p class="error">Enter a first name.</p>}
     </div>
-    <figure class="example">
-      <img src="/example-sheet.jpg" alt="Example character sheet: one person shown front, side, back and full body" width="896" height="1195" />
-      <figcaption class="label">Example result</figcaption>
-    </figure>
   </section>
 
   <div class="countbar">
@@ -66,18 +62,11 @@ const date = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: '
 
 <style>
   .intro {
-    display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 48px; align-items: end;
+    display: block;
     padding-bottom: 48px; margin-bottom: 8px; border-bottom: 1px solid var(--line);
   }
   .copy { display: flex; flex-direction: column; gap: 16px; max-width: 520px; }
   .start { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-top: 8px; }
   .start .field { flex: 1 1 220px; }
-  .example { margin: 0; justify-self: end; max-width: 260px; width: 100%; }
-  .example img { background: var(--surface); }
-  .example figcaption { margin-top: 8px; }
   .empty { padding: 24px 0; }
-  @media (max-width: 760px) {
-    .intro { grid-template-columns: 1fr; gap: 28px; }
-    .example { justify-self: start; max-width: 300px; }
-  }
-</style>
+  </style>
