@@ -38,3 +38,21 @@ Outfits are defined in the `OUTFITS` array in `index.html`. Each piece is:
 ```
 
 Store ids map to the `STORES` object in the same file.
+
+## Style File app (local)
+
+The `app/` folder holds the multi-person version: upload one photo, answer 12 questions, approve a Gemini character sheet, and see your results. It runs locally in Docker.
+
+1. Copy `.env.example` to `.env` and add your keys:
+   - `GEMINI_API_KEY` from https://aistudio.google.com/apikey (character sheets)
+   - `ANTHROPIC_API_KEY` from https://console.anthropic.com/settings/keys (reads skin tone, hair and eye color from the photo)
+2. Run `docker compose up --build` in the repo root.
+3. Open http://localhost:4321.
+
+Without a key, that feature runs in demo mode: the character sheet is the example sheet, and the coloring questions start blank.
+
+Data lives in two Docker volumes: `pgdata` (profiles and answers) and `photos` (uploads and sheets). `docker compose down` keeps them; `docker compose down -v` deletes everything.
+
+Tests: start the database with `docker compose up -d db`, then run `npm test` in `app/`. Tests use a separate `style_test` database.
+
+Design spec: `docs/superpowers/specs/2026-10-25-style-file-app-design.md`. Design system: `app/DESIGN.md`.
