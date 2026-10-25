@@ -1,0 +1,19 @@
+---
+// Simple front-view line drawings: shoulder, waist and hip widths differ per shape.
+interface Props { shape: string }
+const W: Record<string, [number, number, number]> = {
+  'inverted-triangle': [46, 30, 28],
+  pear: [28, 26, 44],
+  hourglass: [40, 22, 40],
+  rectangle: [36, 34, 36],
+  apple: [36, 44, 34],
+};
+const [s, w, h] = W[Astro.props.shape] ?? W.rectangle;
+const c = 50;
+const d = `M ${c - s / 2} 30 L ${c + s / 2} 30 L ${c + w / 2} 62 L ${c + h / 2} 88 L ${c + h / 2 - 4} 132 L ${c + 3} 132 L ${c} 96 L ${c - 3} 132 L ${c - h / 2 + 4} 132 L ${c - h / 2} 88 L ${c - w / 2} 62 Z`;
+---
+<svg viewBox="0 0 100 140" aria-hidden="true" class="shape">
+  <circle cx="50" cy="16" r="9" fill="none" stroke="currentColor" stroke-width="1.5" />
+  <path d={d} fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" />
+</svg>
+<style>.shape { width: 100%; height: auto; max-height: 120px; }</style>
