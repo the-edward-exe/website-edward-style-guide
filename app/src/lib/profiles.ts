@@ -1,0 +1,100 @@
+import { sql } from './db';
+import { newProfileId, isProfileId } from './ids';
+import type { Answers } from './questionnaire';
+import type { PhotoRead } from './ai/claude';
+
+export type JobStatus = 'none' | 'pending' | 'ready' | 'failed';
+
+export type Profile = {
+  id: string;
+  name: string;
+  createdAt: Date;
+  answers: Partial<Answers>;
+  photoPath: string | null;
+  photoRead: PhotoRead | null;
+  photoReadStatus: JobStatus;
+  sheetPath: string | null;
+  sheetStatus: JobStatus;
+  sheetError: string | null;
+  sheetApproved: boolean;
+  attempt: number;
+};
+
+function toProfile(r: Record<string, any>): Profile {
+  return {
+    id: r.id,
+    name: r.name,
+    createdAt: r.created_at,
+    answers: r.answers ?? {},
+    photoPath: r.photo_path,
+    photoRead: r.photo_read,
+    photoReadStatus: r.photo_read_status,
+    sheetPath: r.sheet_path,
+    sheetStatus: r.sheet_status,
+    sheetError: r.sheet_error,
+    sheetApproved: r.sheet_approved,
+    attempt: r.attempt,
+  };
+}
+
+export async function createProfile(name: string): Promise<Profile> {
+  const [r] = await sql`insert into profiles (id, name) values (${newProfileId()}, ${name}) returning *`;
+  return toProfile(r);
+}
+
+export async function getProfile(id: string): Promise<Profile | null> {
+  if (!isProfileId(id)) return null;
+  const [r] = await sql`select * from profiles where id = ${id}`;
+  return r ? toProfile(r) : null;
+}
+
+export async function listProfiles(): Promise<Profile[]> {
+  return (await sql`select * from profiles order by created_at desc`).map(toProfile);
+}
+
+export async function saveAnswers(id: string, patch: Partial<Answers>): Promise<Partial<Answers>> {
+  const [r] = await sql`update profiles set answers = answers || ${sql.json(patch as any)} where id = ${id} returning answers`;
+  return r?.answers ?? {};
+}
+
+export async function setPhoto(id: string, photoPath: string): Promise<number> {
+  const [r] = await sql`
+    update profiles set photo_path = ${photoPath}, attempt = attempt + 1,
+      sheet_status = 'pending', photo_read_status = 'pending', photo_read = null,
+      sheet_path = null, sheet_error = null, sheet_approved = false
+    where id = ${id} returning attempt`;
+  return r.attempt;
+}
+
+export async function finishSheet(id: string, attempt: number, r: { path: string } | { error: string }): Promise<boolean> {
+  const rows = 'path' in r
+    ? await sql`update profiles set sheet_status = 'ready', sheet_path = ${r.path}, sheet_error = null
+        where id = ${id} and attempt = ${attempt} returning id`
+    : await sql`update profiles set sheet_status = 'failed', sheet_error = ${r.error}
+        where id = ${id} and attempt = ${attempt} returning id`;
+  return rows.length > 0;
+}
+
+export async function finishPhotoRead(id: string, attempt: number, read: PhotoRead | null): Promise<boolean> {
+  const rows = await sql`
+    update profiles set photo_read = ${read ? sql.json(read as any) : null},
+      photo_read_status = ${read ? 'ready' : 'failed'}
+    where id = ${id} and attempt = ${attempt} returning id`;
+  return rows.length > 0;
+}
+
+export async function retrySheet(id: string): Promise<number> {
+  const [r] = await sql`
+    update profiles set attempt = attempt + 1, sheet_status = 'pending', sheet_path = null,
+      sheet_error = null, sheet_approved = false
+    where id = ${id} returning attempt`;
+  return r.attempt;
+}
+
+export async function approveSheet(id: string): Promise<void> {
+  await sql`update profiles set sheet_approved = true where id = ${id}`;
+}
+
+export async function deleteProfile(id: string): Promise<boolean> {
+  return (await sql`delete from profiles where id = ${id} returning id`).length > 0;
+}
