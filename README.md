@@ -41,17 +41,17 @@ Store ids map to the `STORES` object in the same file.
 
 ## Style File app (local)
 
-The `app/` folder holds the multi-person version: upload one photo, answer 12 questions, approve a Gemini character sheet, and see your results. It runs locally in Docker.
+The `app/` folder holds the multi-person version. Drop one photo, answer 12 questions, and approve a Gemini character sheet. Claude then writes a personal guide (palette, fit and styling rules, capsule, 12 outfits with shop links), and the dressing room puts any outfit on you with Gemini. Every image downloads, and Download all saves the newest try-on of each outfit as a zip. It runs locally in Docker.
 
 1. Copy `.env.example` to `.env` and add your keys:
-   - `GEMINI_API_KEY` from https://aistudio.google.com/apikey (character sheets)
-   - `ANTHROPIC_API_KEY` from https://console.anthropic.com/settings/keys (reads skin tone, hair and eye color from the photo)
+   - `GEMINI_API_KEY` from https://aistudio.google.com/apikey (character sheets and try-ons, about $0.15 each)
+   - `ANTHROPIC_API_KEY` from https://console.anthropic.com/settings/keys (reads coloring from the photo and writes the guide)
 2. Run `docker compose up --build` in the repo root.
 3. Open http://localhost:4321.
 
-Without a key, that feature runs in demo mode: the character sheet is a plain gray placeholder in the sheet layout, and the coloring questions start blank.
+Without a key, that feature runs in demo mode: sheets and try-ons are plain gray placeholders, the coloring questions start blank, and the guide is a fixed demo guide.
 
-Data lives in two Docker volumes: `pgdata` (profiles and answers) and `photos` (uploads and sheets). `docker compose down` keeps them; `docker compose down -v` deletes everything.
+Data lives in two Docker volumes: `pgdata` (profiles and answers) and `photos` (uploads, sheets and try-ons). `docker compose down` keeps them; `docker compose down -v` deletes everything.
 
 Tests: start the database with `docker compose up -d db`, then run `npm test` in `app/`. Tests use a separate `style_test` database.
 

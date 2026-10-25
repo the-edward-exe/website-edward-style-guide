@@ -1,0 +1,51 @@
+---
+import { STEPS, SKIN_SWATCHES, COLOR_SWATCHES, type Field } from '../lib/questionnaire';
+import type { Profile } from '../lib/profiles';
+
+interface Props { profile: Profile }
+const { profile } = Astro.props;
+const a = profile.answers as Record<string, unknown>;
+const labelFor = (f: Field, v: string) => f.options?.find((o) => o.value === v)?.label ?? v;
+function display(f: Field): string {
+  const v = a[f.key];
+  if (v === undefined || (Array.isArray(v) && v.length === 0)) return 'Not set';
+  if (Array.isArray(v)) return v.map((x) => labelFor(f, String(x))).join(', ');
+  return labelFor(f, String(v));
+}
+const colorHex: Record<string, string> = Object.fromEntries(COLOR_SWATCHES);
+const skinHex = SKIN_SWATCHES.find((s) => s.tone === Number(a.skinTone))?.hex;
+---
+{STEPS.map((s) => (
+  <div class="agroup">
+    <div class="ghead">
+      <h3 class="label">{s.title}</h3>
+      <a class="label link" href={`/p/${profile.id}/q/${s.n}`}>Edit</a>
+    </div>
+    <dl>
+      {s.questions.flatMap((q) => q.fields.map((f) => ({ q, f }))).map(({ q, f }) => {
+        const list = f.kind === 'colors' && Array.isArray(a[f.key]) ? (a[f.key] as string[]) : [];
+        return (
+          <div class="pairrow">
+            <dt class="label">{f.label ?? q.title}</dt>
+            <dd>
+              {f.kind === 'skin' && skinHex && <span class="chipcolor" style={`background:${skinHex}`} />}
+              {list.map((c) => <span class="chipcolor" title={c} style={`background:${colorHex[c]}`} />)}
+              {f.kind === 'skin' ? `Tone ${a.skinTone}` : f.kind === 'colors' ? (list.length ? '' : 'Not set') : display(f)}
+            </dd>
+          </div>
+        );
+      })}
+    </dl>
+  </div>
+))}
+
+<style>
+  .agroup { border-top: 1px solid var(--line); padding: 14px 0 6px; }
+  .ghead { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+  .ghead h3 { color: var(--ink); }
+  dl { margin: 0; }
+  .pairrow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 12px; padding: 5px 0; }
+  dd { margin: 0; font-size: var(--text-sm); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .chipcolor { display: inline-block; width: 16px; height: 16px; border: 1px solid var(--line); }
+  .link { text-decoration: underline; text-underline-offset: 4px; }
+</style>

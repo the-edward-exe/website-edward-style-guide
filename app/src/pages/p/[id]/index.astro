@@ -1,104 +1,423 @@
 ---
 import Base from '../../../layouts/Base.astro';
+import Button from '../../../components/Button.astro';
+import AnswerList from '../../../components/AnswerList.astro';
 import { getProfile } from '../../../lib/profiles';
-import { STEPS, SKIN_SWATCHES, COLOR_SWATCHES, nextPath, type Field } from '../../../lib/questionnaire';
+import { listTryons } from '../../../lib/tryons';
+import { nextPath } from '../../../lib/questionnaire';
+import { STORES } from '../../../lib/stores';
+import { aiMode } from '../../../lib/ai/mode';
 
 const profile = await getProfile(Astro.params.id!);
 if (!profile) return Astro.rewrite('/404');
 const next = nextPath(profile);
 if (next !== `/p/${profile.id}`) return Astro.redirect(next);
 
-const a = profile.answers as Record<string, unknown>;
-const labelFor = (f: Field, v: string) => f.options?.find((o) => o.value === v)?.label ?? v;
-function display(f: Field): string {
-  const v = a[f.key];
-  if (v === undefined || (Array.isArray(v) && v.length === 0)) return '—';
-  if (Array.isArray(v)) return v.map((x) => labelFor(f, String(x))).join(', ');
-  return labelFor(f, String(v));
-}
-const colorHex = Object.fromEntries(COLOR_SWATCHES);
-const skinHex = SKIN_SWATCHES.find((s) => s.tone === Number(a.skinTone))?.hex;
+const g = profile.guideStatus === 'ready' ? profile.guide : null;
+const tryons = g ? await listTryons(profile.id) : [];
+const latestReady = new Map<string, string>();
+for (const t of tryons) if (t.status === 'ready') latestReady.set(t.outfitId, t.id);
+const owned = new Set(profile.capsuleOwned);
+const stores = Object.fromEntries(Object.entries(STORES).map(([k, s]) => [k, { name: s.name, url: s.url }]));
+const occasions = ['All', 'Work', 'Weekend', 'Evening', 'Travel'];
+const seasons = ['All', 'Spring', 'Summer', 'Fall', 'Winter'];
+const demo = aiMode();
 ---
 <Base title={profile.name}>
-  <div class="layout">
-    <section class="sheet">
-      <span class="label">Character sheet · approved</span>
+  <header class="top">
+    <div class="sheetthumb">
       <img src={`/api/p/${profile.id}/image/sheet?v=${profile.attempt}`} alt={`${profile.name}'s character sheet`} />
       <div class="row">
-        <a class="label link" href={`/api/p/${profile.id}/image/sheet?download=1`}>Download</a>
+        <a class="label link" href={`/api/p/${profile.id}/image/sheet?download=1`}>Download sheet</a>
         <a class="label link" href={`/p/${profile.id}/sheet`}>Rebuild</a>
       </div>
-    </section>
-
-    <section class="info">
+    </div>
+    <div class="intro">
       <span class="label">Style file</span>
       <h1>{profile.name}</h1>
-
-      <div class="next">
-        <span class="label">Your guide is next</span>
-        <p>Palette, fit rules, outfits and the dressing room come in the next build. Your answers and sheet are saved.</p>
-      </div>
-
-      {STEPS.map((s) => (
-        <div class="group">
-          <div class="ghead">
-            <h2>{s.title}</h2>
-            <a class="label link" href={`/p/${profile.id}/q/${s.n}`}>Edit</a>
-          </div>
-          <dl>
-            {s.questions.flatMap((q) => q.fields).map((f) => (
-              <div class="pairrow">
-                <dt class="label">{f.label ?? s.questions.find((q) => q.fields.includes(f))!.title}</dt>
-                <dd>
-                  {f.kind === 'skin' && skinHex && <span class="chipcolor" style={`background:${skinHex}`} />}
-                  {f.kind === 'colors' && Array.isArray(a[f.key]) && (a[f.key] as string[]).map((c) => <span class="chipcolor" title={c} style={`background:${colorHex[c]}`} />)}
-                  {f.kind === 'skin' ? `Tone ${a.skinTone}` : f.kind === 'colors' ? (Array.isArray(a[f.key]) && (a[f.key] as string[]).length ? '' : '—') : display(f)}
-                </dd>
-              </div>
-            ))}
-          </dl>
+      {g && <p class="summary">{g.summary}</p>}
+      {profile.guideStatus === 'pending' && <p class="label pulse" id="guidePending">Writing your guide. This takes about a minute.</p>}
+      {profile.guideStatus === 'failed' && (
+        <div class="failed">
+          <p class="error">{profile.guideError}</p>
+          <form method="post" action={`/api/p/${profile.id}/guide/regenerate`}><Button variant="primary">Try again</Button></form>
         </div>
-      ))}
+      )}
+      {(demo.claude === 'demo' || demo.gemini === 'demo') && (
+        <p class="note-warn">Demo mode: {[demo.claude === 'demo' && 'ANTHROPIC_API_KEY', demo.gemini === 'demo' && 'GEMINI_API_KEY'].filter(Boolean).join(' and ')} missing in .env</p>
+      )}
+    </div>
+  </header>
 
-      <details class="danger">
-        <summary class="label">Delete profile</summary>
-        <form method="post" action={`/api/p/${profile.id}/delete`} class="delform">
-          <label class="field">
-            <span class="label">Type DELETE to remove {profile.name} and every photo</span>
-            <input class="input" name="confirm" required pattern="[Dd][Ee][Ll][Ee][Tt][Ee]" autocomplete="off" />
-          </label>
-          <button class="del" type="submit">Delete</button>
-        </form>
-      </details>
+  {!g && (
+    <section class="placeholders" aria-hidden="true">
+      <div class="ph wide" /><div class="ph" /><div class="ph" /><div class="ph" />
     </section>
-  </div>
+  )}
+
+  {g && (
+    <>
+      <section class="block">
+        <div class="bhead"><h2>Palette</h2><span class="label">Three families</span></div>
+        <div class="families">
+          {g.families.map((f) => (
+            <div class="family">
+              <h3>{f.name}</h3>
+              <p class="muted">{f.purpose}</p>
+              <div class="swatches">
+                {f.swatches.map((s) => <div class="sw" style={`background:${s.hex}`}><span>{s.name}</span></div>)}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section class="block rules">
+        <div>
+          <div class="bhead"><h2>Fit for your frame</h2></div>
+          {g.fitRules.map((r) => <div class="rule"><h3>{r.title}</h3><p>{r.body}</p></div>)}
+        </div>
+        <div>
+          <div class="bhead"><h2>Styling rules</h2></div>
+          {g.stylingRules.map((r) => <div class="rule"><h3>{r.title}</h3><p>{r.body}</p></div>)}
+        </div>
+      </section>
+
+      <section class="block">
+        <div class="bhead"><h2>Capsule</h2><span class="label">Tick what you own</span></div>
+        <div class="capsule" id="capsule">
+          {g.capsule.map((c, i) => (
+            <label class="capitem">
+              <input type="checkbox" value={i} checked={owned.has(i)} />
+              <span>{c.item}</span>
+              <span class="label">{c.category}</span>
+            </label>
+          ))}
+        </div>
+      </section>
+
+      <section class="block" id="room">
+        <div class="bhead">
+          <h2>Dressing room</h2>
+          <a class="label link" id="zipLink" href={`/api/p/${profile.id}/tryons/zip`} hidden={latestReady.size === 0}>Download all</a>
+        </div>
+        <div class="filters">
+          <div class="chips" data-filter="occasion">{occasions.map((o) => <button type="button" class="chip" aria-pressed={o === 'All' ? 'true' : 'false'} data-v={o}>{o}</button>)}</div>
+          <div class="chips" data-filter="season">{seasons.map((s) => <button type="button" class="chip" aria-pressed={s === 'All' ? 'true' : 'false'} data-v={s}>{s === 'All' ? 'All seasons' : s}</button>)}</div>
+          <span class="label" id="count">{g.outfits.length} outfits</span>
+        </div>
+        <div class="grid" id="grid">
+          {g.outfits.map((o) => {
+            const tid = latestReady.get(o.id);
+            return (
+              <button type="button" class="card outfit" data-id={o.id} data-occasion={o.occasion} data-season={o.season}>
+                <div class="pic">
+                  {tid
+                    ? <img src={`/api/p/${profile.id}/tryons/${tid}`} alt={`${profile.name} in ${o.name}`} loading="lazy" />
+                    : <div class="stack">{o.pieces.map((x) => <div style={`background:${x.hex}`} />)}</div>}
+                  <span class:list={['tag', { done: !!tid }]}>{tid ? 'Try-on ready' : 'Palette preview'}</span>
+                </div>
+                <span class="label">{o.occasion} / {o.season}</span>
+                <span class="name">{o.name}</span>
+                <span class="sub">{o.pieces.map((x) => `${x.color} ${x.item}`.toLowerCase()).join(', ')}</span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+    </>
+  )}
+
+  <details class="block answers">
+    <summary class="label">Your answers</summary>
+    <AnswerList profile={profile} />
+  </details>
+
+  <details class="danger">
+    <summary class="label">Delete profile</summary>
+    <form method="post" action={`/api/p/${profile.id}/delete`} class="delform">
+      <label class="field">
+        <span class="label">Type DELETE to remove {profile.name} and every photo</span>
+        <input class="input" name="confirm" required pattern="[Dd][Ee][Ll][Ee][Tt][Ee]" autocomplete="off" />
+      </label>
+      <button class="del" type="submit">Delete</button>
+    </form>
+  </details>
+
+  {g && (
+    <dialog id="outfit" aria-labelledby="oTitle">
+      <div class="ohead">
+        <div><span class="label" id="oMeta"></span><h2 id="oTitle" tabindex="-1" autofocus></h2></div>
+        <button class="close label" type="button" id="oClose">Close</button>
+      </div>
+      <div class="obody">
+        <div class="oleft">
+          <div class="pic big" id="oPic"></div>
+          <div class="thumbs" id="oThumbs"></div>
+          <div class="oactions">
+            <button class="btn primary" type="button" id="oTry">Try it on</button>
+            <a class="label link" id="oDownload" hidden>Download</a>
+          </div>
+          <p class="status label" id="oStatus"></p>
+          <details class="prompt">
+            <summary class="label">Edit the prompt</summary>
+            <textarea id="oPrompt" class="input" rows="7" placeholder="Leave empty to use the default prompt for this outfit."></textarea>
+          </details>
+        </div>
+        <div class="oright">
+          <span class="label">The pieces</span>
+          <div id="oPieces"></div>
+          <div class="why"><span class="label">Why it works</span><p id="oWhy"></p></div>
+        </div>
+      </div>
+    </dialog>
+  )}
 </Base>
 
-<style>
-  .layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 48px; align-items: start; }
-  .sheet { display: flex; flex-direction: column; gap: 10px; position: sticky; top: 72px; }
-  .sheet img { background: var(--surface); max-height: calc(100vh - 160px); width: auto; object-fit: contain; }
-  .row { display: flex; gap: 16px; }
-  .link { text-decoration: underline; text-underline-offset: 4px; }
-  .link:hover { color: var(--ink); }
-  .info { display: flex; flex-direction: column; gap: 10px; }
-  .next { background: var(--surface); padding: 16px; margin: 12px 0 8px; display: flex; flex-direction: column; gap: 6px; }
-  .next p { font-size: var(--text-sm); color: var(--muted); }
-  .group { border-top: 1px solid var(--line); padding: 16px 0 6px; }
-  .ghead { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
-  dl { margin: 0; }
-  .pairrow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 12px; padding: 6px 0; }
-  dt { padding-top: 2px; }
-  dd { margin: 0; font-size: var(--text-sm); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-  .chipcolor { display: inline-block; width: 16px; height: 16px; border: 1px solid var(--line); }
-  .danger { border-top: 1px solid var(--line); padding-top: 16px; margin-top: 12px; }
-  .danger summary { cursor: pointer; color: var(--bad); }
-  .delform { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-top: 12px; }
-  .delform .field { flex: 1 1 240px; }
-  .del {
-    font: 500 var(--text-xs)/1 var(--font); text-transform: uppercase; letter-spacing: var(--track-label);
-    padding: 13px 22px; border: 1px solid var(--bad); background: transparent; color: var(--bad); cursor: pointer;
+<script is:inline type="application/json" id="data" set:html={JSON.stringify({ id: profile.id, name: profile.name, guideStatus: profile.guideStatus, outfits: g?.outfits ?? [], tryons, stores })} />
+
+<script>
+  type T = { id: string; outfitId: string; version: number; status: string; error: string | null };
+  const data = JSON.parse(document.getElementById('data')!.textContent!);
+  const { id, outfits, stores } = data;
+  let tryons: T[] = data.tryons;
+  const $ = (s: string) => document.getElementById(s)!;
+
+  // Guide still being written: check back until it lands.
+  if (data.guideStatus === 'pending') {
+    const poll = async () => {
+      const s = await fetch(`/api/p/${id}/status`).then((r) => r.json()).catch(() => null);
+      if (s && s.guideStatus !== 'pending') location.reload();
+      else setTimeout(poll, 3000);
+    };
+    setTimeout(poll, 3000);
   }
+
+  // Capsule checklist saves on every tick.
+  document.getElementById('capsule')?.addEventListener('change', () => {
+    const owned = [...document.querySelectorAll<HTMLInputElement>('#capsule input:checked')].map((i) => Number(i.value));
+    fetch(`/api/p/${id}/capsule`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ owned }) });
+  });
+
+  // Occasion and season filters.
+  const filter = { occasion: 'All', season: 'All' };
+  document.querySelectorAll<HTMLElement>('.filters .chips').forEach((group) => {
+    group.addEventListener('click', (e) => {
+      const b = (e.target as HTMLElement).closest<HTMLButtonElement>('.chip');
+      if (!b) return;
+      filter[group.dataset.filter as 'occasion' | 'season'] = b.dataset.v!;
+      group.querySelectorAll('.chip').forEach((c) => c.setAttribute('aria-pressed', String(c === b)));
+      let n = 0;
+      document.querySelectorAll<HTMLElement>('.outfit').forEach((card) => {
+        const show = (filter.occasion === 'All' || card.dataset.occasion === filter.occasion)
+          && (filter.season === 'All' || card.dataset.season === filter.season || card.dataset.season === 'All year');
+        card.hidden = !show;
+        if (show) n++;
+      });
+      $('count').textContent = n ? `${n} of ${outfits.length} outfits` : 'No outfits match. Try another filter.';
+    });
+  });
+
+  // Dressing room dialog.
+  const dialog = document.getElementById('outfit') as HTMLDialogElement | null;
+  let current: any = null;
+  let shown: T | null = null;
+  const img = (t: T) => `/api/p/${id}/tryons/${t.id}`;
+  const versions = (oid: string) => tryons.filter((t) => t.outfitId === oid).sort((a, b) => a.version - b.version);
+  const stack = (o: any) => `<div class="stack">${o.pieces.map((x: any) => `<div style="background:${x.hex}"></div>`).join('')}</div>`;
+  const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
+
+  function paint() {
+    if (!current) return;
+    const vs = versions(current.id);
+    // Polling replaces the list with fresh rows, so re-read the shown version by id.
+    shown = shown ? vs.find((v) => v.id === shown!.id) ?? null : null;
+    if (!shown) shown = [...vs].reverse().find((v) => v.status === 'ready') ?? vs[vs.length - 1] ?? null;
+    const pic = $('oPic');
+    if (shown?.status === 'ready') pic.innerHTML = `<img src="${img(shown)}" alt="${esc(data.name)} in ${esc(current.name)}">`;
+    else if (shown?.status === 'pending') pic.innerHTML = `<span class="label pulse">Dressing you. 20 to 60 seconds.</span>`;
+    else pic.innerHTML = stack(current) + `<span class="tag">Palette preview</span>`;
+    pic.classList.toggle('waiting', shown?.status === 'pending');
+
+    $('oThumbs').innerHTML = vs.map((v) => v.status === 'ready'
+      ? `<button type="button" data-t="${v.id}" class="${v.id === shown?.id ? 'on' : ''}" title="Version ${v.version}"><img src="${img(v)}" alt="Version ${v.version}"></button>`
+      : `<button type="button" data-t="${v.id}" class="ph ${v.id === shown?.id ? 'on' : ''}" title="Version ${v.version}">${v.status === 'pending' ? '…' : '!'}</button>`).join('');
+
+    const dl = $('oDownload') as HTMLAnchorElement;
+    dl.hidden = shown?.status !== 'ready';
+    if (shown?.status === 'ready') dl.href = `${img(shown)}?download=1`;
+
+    const pending = vs.some((v) => v.status === 'pending');
+    ($('oTry') as HTMLButtonElement).disabled = pending;
+    $('oTry').textContent = vs.length ? 'Try another' : 'Try it on';
+    const failed = shown?.status === 'failed' ? shown.error : '';
+    $('oStatus').textContent = pending ? 'Generating. You can close this and come back.' : failed ?? '';
+    $('oStatus').classList.toggle('error', !!failed);
+  }
+
+  function open(o: any) {
+    current = o;
+    shown = null;
+    $('oMeta').textContent = `${o.occasion} / ${o.season}`;
+    $('oTitle').textContent = o.name;
+    $('oWhy').textContent = o.why;
+    ($('oPrompt') as HTMLTextAreaElement).value = '';
+    $('oPieces').innerHTML = o.pieces.map((x: any) => {
+      const q = encodeURIComponent(x.search);
+      const links = x.stores.map((s: string) => stores[s] ? `<a class="store" href="${stores[s].url}" target="_blank" rel="noopener">${esc(stores[s].name)}</a>` : '').join('')
+        + `<a href="https://www.google.com/search?tbm=shop&q=${q}" target="_blank" rel="noopener">Google Shopping</a>`
+        + `<a href="https://www.amazon.com/s?k=${q}" target="_blank" rel="noopener">Amazon</a>`;
+      return `<div class="piece"><div class="dot" style="background:${x.hex}"></div><div><strong>${esc(x.item)}</strong> <span class="muted">in ${esc(x.color.toLowerCase())}</span><div class="label">${esc(x.fabric)}</div><div class="links">${links}</div></div></div>`;
+    }).join('');
+    paint();
+    dialog!.showModal();
+  }
+
+  function refreshCards() {
+    for (const o of outfits) {
+      const ready = [...versions(o.id)].reverse().find((v) => v.status === 'ready');
+      const card = document.querySelector<HTMLElement>(`.outfit[data-id="${o.id}"]`);
+      if (!card || !ready) continue;
+      const pic = card.querySelector('.pic')!;
+      if (pic.querySelector('img')?.getAttribute('src') === img(ready)) continue;
+      pic.innerHTML = `<img src="${img(ready)}" alt="${esc(data.name)} in ${esc(o.name)}"><span class="tag done">Try-on ready</span>`;
+    }
+    $('zipLink').hidden = !tryons.some((t) => t.status === 'ready');
+  }
+
+  let polling = false;
+  async function poll() {
+    if (polling) return;
+    polling = true;
+    while (tryons.some((t) => t.status === 'pending')) {
+      await new Promise((r) => setTimeout(r, 3000));
+      const out = await fetch(`/api/p/${id}/tryons`).then((r) => r.json()).catch(() => null);
+      if (out) { tryons = out.tryons; paint(); refreshCards(); }
+    }
+    polling = false;
+  }
+
+  document.getElementById('grid')?.addEventListener('click', (e) => {
+    const card = (e.target as HTMLElement).closest<HTMLElement>('.outfit');
+    if (card) open(outfits.find((o: any) => o.id === card.dataset.id));
+  });
+  document.getElementById('oThumbs')?.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLElement>('[data-t]');
+    if (b) { shown = tryons.find((t) => t.id === b.dataset.t) ?? null; paint(); }
+  });
+  document.getElementById('oTry')?.addEventListener('click', async () => {
+    const prompt = ($('oPrompt') as HTMLTextAreaElement).value.trim();
+    const res = await fetch(`/api/p/${id}/tryons`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ outfitId: current.id, ...(prompt ? { prompt } : {}) }),
+    }).catch(() => null);
+    const out = res ? await res.json().catch(() => null) : null;
+    if (!out?.tryon) { $('oStatus').textContent = out?.error ?? 'Could not start. Try again.'; return; }
+    tryons.push(out.tryon);
+    shown = out.tryon;
+    paint();
+    poll();
+  });
+  document.getElementById('oClose')?.addEventListener('click', () => dialog!.close());
+  dialog?.addEventListener('click', (e) => { if (e.target === dialog) dialog.close(); });
+  if (tryons.some((t) => t.status === 'pending')) poll();
+</script>
+
+<style>
+  .top { display: grid; grid-template-columns: minmax(0, 220px) minmax(0, 1fr); gap: 36px; align-items: start; padding-bottom: 32px; border-bottom: 1px solid var(--line); }
+  .sheetthumb { display: flex; flex-direction: column; gap: 8px; }
+  .sheetthumb img { background: var(--surface); }
+  .row { display: flex; gap: 14px; flex-wrap: wrap; }
+  .link { text-decoration: underline; text-underline-offset: 4px; cursor: pointer; }
+  .link:hover { color: var(--ink); }
+  .intro { display: flex; flex-direction: column; gap: 12px; max-width: 640px; }
+  .summary { font-size: var(--text-md); color: var(--ink); }
+  .failed { display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
+  .pulse { animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: 0.4; } }
+  @media (prefers-reduced-motion: reduce) { .pulse { animation: none; } }
+
+  .placeholders { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--gap); padding: 32px 0; }
+  .ph { background: var(--chip); aspect-ratio: 3 / 4; }
+  .ph.wide { grid-column: 1 / -1; aspect-ratio: auto; height: 120px; }
+
+  .block { padding: 32px 0; border-bottom: 1px solid var(--line); }
+  .bhead { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 18px; }
+  .families { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px; }
+  .family h3 { font-size: var(--text-sm); text-transform: uppercase; letter-spacing: var(--track-label); font-weight: 500; }
+  .family p { font-size: var(--text-sm); margin: 4px 0 12px; }
+  .swatches { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+  .sw { aspect-ratio: 3 / 4; position: relative; border: 1px solid var(--line); }
+  .sw span { position: absolute; left: 4px; right: 4px; bottom: 4px; background: var(--surface); padding: 2px 4px; font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.06em; }
+
+  .rules { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 48px; }
+  .rule { border-top: 2px solid var(--ink); padding: 10px 0 16px; }
+  .rule h3 { font-size: var(--text-sm); font-weight: 500; text-transform: uppercase; letter-spacing: var(--track-label); margin-bottom: 4px; }
+  .rule p { font-size: var(--text-sm); }
+
+  .capsule { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 28px; }
+  .capitem { display: flex; gap: 10px; align-items: baseline; padding: 8px 0; border-bottom: 1px dashed var(--line); cursor: pointer; font-size: var(--text-sm); }
+  .capitem input { accent-color: var(--accent); }
+  .capitem .label { margin-left: auto; }
+
+  .filters { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-bottom: 18px; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip { font: 500 var(--text-xs)/1 var(--font); text-transform: uppercase; letter-spacing: var(--track-label); padding: 9px 12px; background: var(--chip); border: 0; cursor: pointer; color: var(--ink); }
+  .chip[aria-pressed=true] { background: var(--ink); color: var(--bg); }
+  #count { margin-left: auto; }
+
+  .outfit { background: none; border: 0; padding: 0; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+  .pic { position: relative; }
+  .stack { display: flex; flex-direction: column; gap: 6px; width: 100%; height: 100%; padding: 16% 22%; }
+  .stack div { flex: 1; }
+  .tag { position: absolute; top: 10px; left: 10px; background: var(--surface); padding: 3px 6px; font-size: 0.62rem; text-transform: uppercase; letter-spacing: var(--track-label); }
+  .tag.done { background: var(--ok); color: var(--surface); }
+
+  .answers summary, .danger summary { cursor: pointer; }
+  .answers[open] summary { margin-bottom: 12px; }
+  .danger { padding-top: 20px; }
+  .danger summary { color: var(--bad); }
+  .delform { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-top: 12px; }
+  .delform .field { flex: 1 1 240px; max-width: 420px; }
+  .del { font: 500 var(--text-xs)/1 var(--font); text-transform: uppercase; letter-spacing: var(--track-label); padding: 13px 22px; border: 1px solid var(--bad); background: transparent; color: var(--bad); cursor: pointer; }
   .del:hover { background: var(--bad); color: var(--accent-ink); }
-  @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } .sheet { position: static; } }
+
+  dialog { width: min(980px, calc(100vw - 32px)); max-height: 90vh; padding: 24px 28px; border: 0; background: var(--bg); color: var(--ink); overflow-y: auto; margin: auto; }
+  dialog::backdrop { background: rgb(29 41 56 / 0.55); }
+  .ohead { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 18px; }
+  .ohead h2 { font-size: var(--text-lg); margin-top: 6px; outline: none; }
+  .close { background: none; border: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 4px; font-family: var(--font); }
+  .obody { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 28px; }
+  .oleft { display: flex; flex-direction: column; gap: 10px; }
+  :global(.pic.big) { aspect-ratio: 3 / 4; background: var(--surface); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  :global(.pic.big img) { width: 100%; height: 100%; object-fit: cover; }
+  :global(.pic.big.waiting) { background: var(--chip); }
+  :global(.thumbs) { display: flex; gap: 6px; flex-wrap: wrap; }
+  :global(.thumbs button) { width: 52px; height: 70px; padding: 0; border: 2px solid transparent; background: var(--chip); cursor: pointer; overflow: hidden; font-family: var(--font); }
+  :global(.thumbs button.on) { border-color: var(--accent); }
+  :global(.thumbs img) { width: 100%; height: 100%; object-fit: cover; }
+  .oactions { display: flex; gap: 14px; align-items: center; }
+  .btn { font: 500 var(--text-xs)/1 var(--font); text-transform: uppercase; letter-spacing: var(--track-label); padding: 13px 22px; border: 0; cursor: pointer; }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); }
+  .btn.primary:hover { background: #774c32; }
+  .btn:disabled { opacity: 0.5; cursor: default; }
+  .status { min-height: 1em; }
+  .prompt textarea { width: 100%; margin-top: 8px; font-size: var(--text-xs); line-height: 1.5; resize: vertical; }
+  .prompt summary { cursor: pointer; }
+  :global(.piece) { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); font-size: var(--text-sm); }
+  :global(.piece .dot) { width: 34px; height: 46px; border: 1px solid var(--line); }
+  :global(.links) { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+  :global(.links a) { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.06em; text-decoration: none; border: 1px solid var(--line); padding: 4px 8px; color: var(--ink); }
+  :global(.links a.store) { border-color: var(--navy); color: var(--navy); }
+  :global(.links a:hover) { border-color: var(--ink); }
+  .why { background: var(--surface); padding: 14px; margin-top: 16px; display: flex; flex-direction: column; gap: 6px; font-size: var(--text-sm); }
+
+  @media (max-width: 900px) {
+    .families, .capsule { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .rules, .obody { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 560px) {
+    .top, .families, .capsule { grid-template-columns: 1fr; }
+    .sheetthumb { max-width: 200px; }
+  }
 </style>
