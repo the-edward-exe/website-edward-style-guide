@@ -1,9 +1,9 @@
 ---
 import Base from '../../../../layouts/Base.astro';
 import Button from '../../../../components/Button.astro';
-import ShapeIcon from '../../../../components/ShapeIcon.astro';
+import Questions from '../../../../components/Questions.astro';
 import { getProfile } from '../../../../lib/profiles';
-import { STEPS, SKIN_SWATCHES, COLOR_SWATCHES, prefillFromRead, type Answers, type Field } from '../../../../lib/questionnaire';
+import { STEPS, prefillFromRead, type Answers } from '../../../../lib/questionnaire';
 
 const profile = await getProfile(Astro.params.id!);
 const step = STEPS.find((s) => String(s.n) === Astro.params.step);
@@ -15,12 +15,6 @@ const prefill = step.n === 2 ? prefillFromRead(profile.answers, profile.photoRea
 const a: Partial<Answers> = { ...prefill, ...profile.answers };
 const prefilled = Object.keys(prefill).length > 0;
 const waitingOnRead = step.n === 2 && profile.photoReadStatus === 'pending';
-
-const has = (f: Field, v: string) => {
-  const cur = a[f.key];
-  return Array.isArray(cur) ? (cur as string[]).includes(v) : String(cur ?? '') === v;
-};
-const inputType = (f: Field) => (f.kind === 'single' || f.kind === 'shape' || f.kind === 'skin' ? 'radio' : 'checkbox');
 ---
 <Base title={step.title}>
   <div class="head">
@@ -31,118 +25,23 @@ const inputType = (f: Field) => (f.kind === 'single' || f.kind === 'shape' || f.
 
   {missing.size > 0 && <p class="error">Answer every question to continue.</p>}
   {step.n === 2 && (
-    <p class="label read" id="readNote" data-state={waitingOnRead ? 'pending' : prefilled ? 'ready' : 'none'}>
+    <p class="label read" id="readNote">
       {waitingOnRead ? 'Reading your photo…' : prefilled ? 'From your photo. Change if wrong.' : ''}
     </p>
   )}
 
   <form method="post" action={`/api/p/${profile.id}/answers?step=${step.n}`} class="form">
-    {step.questions.map((q) => (
-      <fieldset class:list={['q', { bad: q.fields.some((f) => missing.has(f.key)) }]}>
-        <legend>
-          <span class="num">{String(q.n).padStart(2, '0')}</span>
-          <span class="title">{q.title}</span>
-          {q.hint && <span class="label">{q.hint}</span>}
-        </legend>
-
-        {q.fields.map((f) => (
-          <div class="field" data-key={f.key} data-max={f.max}>
-            {f.label && f.kind !== 'text' && <span class="label">{f.label}</span>}
-
-            {f.kind === 'text' && (
-              <label class="text">
-                <span class="label">{f.label}</span>
-                <input class="input" name={f.key} value={String(a[f.key] ?? '')} placeholder={f.placeholder} maxlength="60" />
-              </label>
-            )}
-
-            {(f.kind === 'single' || f.kind === 'multi') && (
-              <div class="chips">
-                {f.options!.map((o) => (
-                  <label class="chip">
-                    <input type={inputType(f)} name={f.key} value={o.value} checked={has(f, o.value)} />
-                    <span>{o.label}</span>
-                  </label>
-                ))}
-              </div>
-            )}
-
-            {f.kind === 'shape' && (
-              <div class="shapes">
-                {f.options!.map((o) => (
-                  <label class="shapecard">
-                    <input type="radio" name={f.key} value={o.value} checked={has(f, o.value)} />
-                    <ShapeIcon shape={o.value} />
-                    <span class="label">{o.label}</span>
-                  </label>
-                ))}
-              </div>
-            )}
-
-            {f.kind === 'skin' && (
-              <div class="swatches">
-                {SKIN_SWATCHES.map((s) => (
-                  <label class="swatch" title={`Tone ${s.tone}`}>
-                    <input type="radio" name={f.key} value={s.tone} checked={has(f, String(s.tone))} />
-                    <span style={`background:${s.hex}`} />
-                  </label>
-                ))}
-              </div>
-            )}
-
-            {f.kind === 'colors' && (
-              <div class="swatches small">
-                {COLOR_SWATCHES.map(([name, hex]) => (
-                  <label class="swatch" title={name}>
-                    <input type="checkbox" name={f.key} value={name} checked={has(f, name)} />
-                    <span style={`background:${hex}`} />
-                    <em class="label">{name}</em>
-                  </label>
-                ))}
-              </div>
-            )}
-
-            {f.kind === 'tiles' && (
-              <div class="tiles">
-                {f.options!.map((o) => (
-                  <label class="tile">
-                    <input type="checkbox" name={f.key} value={o.value} checked={has(f, o.value)} />
-                    <span class="tname">{o.label}</span>
-                    <span class="label">{o.hint}</span>
-                  </label>
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
-      </fieldset>
-    ))}
-
+    <Questions step={step} answers={a} missing={missing} />
     <div class="actions">
-      {step.n > 1 ? <a class="back label" href={`/p/${profile.id}/q/${step.n - 1}`}>Back</a> : <a class="back label" href={`/p/${profile.id}/photo`}>Change photo</a>}
+      {step.n > 1
+        ? <a class="back label" href={`/p/${profile.id}/q/${step.n - 1}`}>Back</a>
+        : <a class="back label" href={`/p/${profile.id}/photo`}>Change photo</a>}
       <Button variant="primary">{step.n === 4 ? 'See my sheet' : 'Next'}</Button>
     </div>
   </form>
 </Base>
 
 <script define:vars={{ id: profile.id, waiting: waitingOnRead }}>
-  // Cap multi-selects at their max (goals: 2, styles: 3).
-  document.querySelectorAll('.field[data-max]').forEach((field) => {
-    const max = Number(field.dataset.max);
-    field.addEventListener('change', (e) => {
-      const boxes = [...field.querySelectorAll('input[type=checkbox]')];
-      if (boxes.filter((b) => b.checked).length > max) e.target.checked = false;
-    });
-  });
-
-  // "None" in the avoid list clears the others, and vice versa.
-  const avoid = document.querySelector('.field[data-key=avoid]');
-  avoid?.addEventListener('change', (e) => {
-    const boxes = [...avoid.querySelectorAll('input')];
-    if (e.target.value === 'none' && e.target.checked) boxes.forEach((b) => { if (b.value !== 'none') b.checked = false; });
-    else if (e.target.checked) boxes.forEach((b) => { if (b.value === 'none') b.checked = false; });
-  });
-
   // Step 2: fill coloring from the photo read when it lands, only where nothing is chosen yet.
   if (waiting) {
     const note = document.getElementById('readNote');
@@ -150,17 +49,16 @@ const inputType = (f: Field) => (f.kind === 'single' || f.kind === 'shape' || f.
       const s = await fetch(`/api/p/${id}/status`).then((r) => r.json()).catch(() => null);
       if (!s || s.photoReadStatus === 'pending') return setTimeout(poll, 2000);
       const r = s.photoRead;
+      let filled = false;
       if (r) {
-        const tone = document.querySelectorAll('input[name=skinTone]');
-        if (![...tone].some((t) => t.checked)) tone.forEach((t) => { if (t.value === String(r.skinTone)) t.checked = true; });
+        const tone = [...document.querySelectorAll('input[name=skinTone]')];
+        if (!tone.some((t) => t.checked)) tone.forEach((t) => { if (t.value === String(r.skinTone)) { t.checked = true; filled = true; } });
         for (const k of ['hair', 'eyes']) {
           const el = document.querySelector(`input[name=${k}]`);
-          if (el && !el.value) el.value = r[k];
+          if (el && !el.value) { el.value = r[k]; filled = true; }
         }
-        note.textContent = 'From your photo. Change if wrong.';
-      } else {
-        note.textContent = '';
       }
+      note.textContent = filled ? 'From your photo. Change if wrong.' : '';
     };
     poll();
   }
@@ -174,49 +72,7 @@ const inputType = (f: Field) => (f.kind === 'single' || f.kind === 'shape' || f.
   .read { margin: -12px 0 20px; min-height: 1em; color: var(--ok); }
   .error { margin: -12px 0 20px; }
   .form { display: flex; flex-direction: column; max-width: 760px; }
-  .q { border: 0; border-top: 1px solid var(--line); margin: 0; padding: 22px 0 26px; display: flex; flex-direction: column; gap: 16px; }
-  .q.bad legend .title { color: var(--bad); }
-  .q:has(.text) { flex-direction: row; flex-wrap: wrap; gap: 12px; }
-  .q:has(.text) .field { flex: 1 1 180px; }
-  legend { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; padding: 0; margin-bottom: 14px; }
-  .num { font-size: var(--text-xs); color: var(--muted); letter-spacing: var(--track-label); }
-  .title { font-size: var(--text-md); font-weight: 500; text-transform: uppercase; letter-spacing: var(--track-label); }
-  .field { display: flex; flex-direction: column; gap: 8px; }
-  .text { display: flex; flex-direction: column; gap: 6px; max-width: 320px; }
-
-  input[type=radio], input[type=checkbox] { position: absolute; opacity: 0; width: 1px; height: 1px; }
-  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-  .chip span {
-    display: inline-block; padding: 9px 14px; background: var(--chip); cursor: pointer;
-    font-size: var(--text-xs); text-transform: uppercase; letter-spacing: var(--track-label);
-  }
-  .chip input:checked + span { background: var(--ink); color: var(--bg); }
-  .chip input:focus-visible + span, .swatch input:focus-visible + span, .tile:focus-within, .shapecard:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
-
-  .shapes { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
-  .shapecard { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 14px 8px; background: var(--surface); cursor: pointer; color: var(--muted); text-align: center; }
-  .shapecard:has(input:checked) { background: var(--ink); color: var(--bg); }
-  .shapecard:has(input:checked) .label { color: var(--bg); }
-
-  .swatches { display: flex; flex-wrap: wrap; gap: 8px; }
-  .swatch { position: relative; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 4px; }
-  .swatch span { display: block; width: 44px; height: 58px; border: 1px solid var(--line); }
-  .swatch input:checked + span { outline: 2px solid var(--ink); outline-offset: 3px; }
-  .swatches.small .swatch span { width: 34px; height: 34px; }
-  .swatch em { font-style: normal; font-size: 0.6rem; }
-
-  .tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
-  .tile { aspect-ratio: 3 / 4; background: var(--chip); padding: 14px; display: flex; flex-direction: column; justify-content: flex-end; gap: 4px; cursor: pointer; }
-  .tile .tname { text-transform: uppercase; letter-spacing: var(--track-label); font-size: var(--text-sm); font-weight: 500; }
-  .tile:has(input:checked) { background: var(--ink); color: var(--bg); }
-  .tile:has(input:checked) .label { color: var(--chip); }
-
   .actions { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--line); padding-top: 22px; }
   .back { text-decoration: none; }
   .back:hover { color: var(--ink); text-decoration: underline; }
-
-  @media (max-width: 760px) {
-    .shapes { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  }
 </style>

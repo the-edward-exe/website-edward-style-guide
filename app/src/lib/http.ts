@@ -10,3 +10,7 @@ export async function readForm(request: Request): Promise<FormData> {
     return new FormData();
   }
 }
+
+export function wantsJson(request: Request): boolean {
+  return (request.headers.get('Accept') ?? '').includes('application/json');
+}

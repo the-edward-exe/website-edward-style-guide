@@ -3,14 +3,14 @@ import { getProfile, setPhoto } from '../../../../lib/profiles';
 import { normalizePhoto, PhotoError } from '../../../../lib/images';
 import { saveImage } from '../../../../lib/storage';
 import { startPhotoJobs } from '../../../../lib/jobs';
-import { seeOther, readForm } from '../../../../lib/http';
+import { seeOther, readForm, wantsJson } from '../../../../lib/http';
 
 // The drag-and-drop page posts with Accept: application/json and stays put;
 // a plain form post (no JavaScript) still redirects.
 export const POST: APIRoute = async ({ params, request }) => {
   const profile = await getProfile(params.id!);
   if (!profile) return new Response('Not found', { status: 404 });
-  const json = (request.headers.get('Accept') ?? '').includes('application/json');
+  const json = wantsJson(request);
   const next = `/p/${profile.id}/q/1`;
   const fail = (msg: string) =>
     json
