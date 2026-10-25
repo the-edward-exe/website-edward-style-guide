@@ -1,0 +1,80 @@
+---
+import Base from '../../../layouts/Base.astro';
+import Button from '../../../components/Button.astro';
+import { getProfile } from '../../../lib/profiles';
+import { aiMode } from '../../../lib/ai/mode';
+
+const profile = await getProfile(Astro.params.id!);
+if (!profile) return Astro.rewrite('/404');
+if (!profile.photoPath) return Astro.redirect(`/p/${profile.id}/photo`);
+
+const { sheetStatus: status, sheetError } = profile;
+const demo = aiMode().gemini === 'demo';
+const v = profile.attempt;
+---
+<Base title="Character sheet">
+  <div class="head">
+    <span class="label">Character sheet · {profile.name}</span>
+    <h1>{status === 'ready' ? 'Is this you?' : status === 'failed' ? 'The sheet didn’t work' : 'Building your character sheet'}</h1>
+    <p class="label">Every outfit you try on uses this sheet. Check the face, hair and build.</p>
+    {demo && <p class="note-warn">Demo mode: add GEMINI_API_KEY to .env for real sheets</p>}
+  </div>
+
+  <div class="pair">
+    <figure>
+      <div class="frame"><img src={`/api/p/${profile.id}/image/photo?v=${v}`} alt={`${profile.name}'s photo`} /></div>
+      <figcaption class="label">Your photo</figcaption>
+    </figure>
+
+    <figure class="sheet">
+      <div class:list={['frame', { waiting: status !== 'ready' }]} id="sheetFrame" data-status={status}>
+        {status === 'ready' && <img src={`/api/p/${profile.id}/image/sheet?v=${v}`} alt={`${profile.name}'s character sheet`} />}
+        {status === 'pending' && <span class="label pulse">Building. This takes 20 to 60 seconds.</span>}
+        {status === 'failed' && <span class="error">{sheetError}</span>}
+      </div>
+      <figcaption class="label">Character sheet</figcaption>
+    </figure>
+  </div>
+
+  <div class="actions">
+    {status === 'ready' && (
+      <form method="post" action={`/api/p/${profile.id}/sheet/approve`}>
+        <Button variant="primary">This is me</Button>
+      </form>
+    )}
+    {status !== 'pending' && (
+      <form method="post" action={`/api/p/${profile.id}/sheet/retry`}>
+        <Button>Try again</Button>
+      </form>
+    )}
+    {status === 'ready' && <a class="label dl" href={`/api/p/${profile.id}/image/sheet?download=1`}>Download</a>}
+    <a class="label dl" href={`/p/${profile.id}/photo`}>Use a different photo</a>
+  </div>
+</Base>
+
+<script define:vars={{ id: profile.id, status }}>
+  if (status === 'pending') {
+    const poll = async () => {
+      const s = await fetch(`/api/p/${id}/status`).then((r) => r.json()).catch(() => null);
+      if (s && s.sheetStatus !== 'pending') location.reload();
+      else setTimeout(poll, 3000);
+    };
+    setTimeout(poll, 3000);
+  }
+</script>
+
+<style>
+  .head { display: flex; flex-direction: column; gap: 8px; margin-bottom: 28px; }
+  .pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--gap); align-items: start; max-width: min(820px, calc((100vh - 300px) * 1.15)); }
+  figure { margin: 0; display: flex; flex-direction: column; gap: 8px; }
+  .frame { background: var(--surface); aspect-ratio: 3 / 4; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  .frame img { width: 100%; height: 100%; object-fit: contain; }
+  .frame.waiting { background: var(--chip); padding: 24px; text-align: center; }
+  .pulse { animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: 0.4; } }
+  @media (prefers-reduced-motion: reduce) { .pulse { animation: none; } }
+  .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 24px; }
+  .dl { margin-left: 8px; text-decoration: underline; text-underline-offset: 4px; }
+  .dl:hover { color: var(--ink); }
+  @media (max-width: 760px) { .pair { grid-template-columns: 1fr; } }
+</style>
