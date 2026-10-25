@@ -3,6 +3,7 @@ import { newProfileId, isProfileId } from './ids';
 import type { Answers } from './questionnaire';
 import type { PhotoRead } from './ai/claude';
 import type { Guide } from './guide';
+import type { Looks } from './looks';
 
 /** Name a profile carries until the person types theirs in the pop-up. */
 export const NEW_PROFILE_NAME = 'New profile';
@@ -27,6 +28,10 @@ export type Profile = {
   guideError: string | null;
   guideAttempt: number;
   capsuleOwned: number[];
+  looks: Looks | null;
+  looksStatus: JobStatus;
+  looksError: string | null;
+  looksAttempt: number;
 };
 
 function toProfile(r: Record<string, any>): Profile {
@@ -48,6 +53,10 @@ function toProfile(r: Record<string, any>): Profile {
     guideError: r.guide_error ?? null,
     guideAttempt: r.guide_attempt ?? 0,
     capsuleOwned: r.capsule_owned ?? [],
+    looks: r.looks ?? null,
+    looksStatus: r.looks_status ?? 'none',
+    looksError: r.looks_error ?? null,
+    looksAttempt: r.looks_attempt ?? 0,
   };
 }
 
@@ -133,6 +142,24 @@ export async function finishGuide(id: string, attempt: number, r: { guide: Guide
         where id = ${id} and guide_attempt = ${attempt} returning id`
     : await sql`update profiles set guide_status = 'failed', guide_error = ${r.error}
         where id = ${id} and guide_attempt = ${attempt} returning id`;
+  return rows.length > 0;
+}
+
+/** Starts a run of the ten sheet-page looks, guarded the same way as beginGuide. */
+export async function beginLooks(id: string): Promise<number>;
+export async function beginLooks(id: string, unless: JobStatus[]): Promise<number | null>;
+export async function beginLooks(id: string, unless: JobStatus[] = []): Promise<number | null> {
+  const [r] = await sql`update profiles set looks_attempt = looks_attempt + 1, looks_status = 'pending', looks_error = null
+    where id = ${id} and not (looks_status = any(${unless}::text[])) returning looks_attempt`;
+  return r ? r.looks_attempt : null;
+}
+
+export async function finishLooks(id: string, attempt: number, r: { looks: Looks } | { error: string }): Promise<boolean> {
+  const rows = 'looks' in r
+    ? await sql`update profiles set looks = ${sql.json(r.looks as any)}, looks_status = 'ready', looks_error = null
+        where id = ${id} and looks_attempt = ${attempt} returning id`
+    : await sql`update profiles set looks_status = 'failed', looks_error = ${r.error}
+        where id = ${id} and looks_attempt = ${attempt} returning id`;
   return rows.length > 0;
 }
 

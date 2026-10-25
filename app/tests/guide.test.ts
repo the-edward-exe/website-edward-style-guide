@@ -9,6 +9,7 @@ const profile = (answers: object): Profile => ({
   photoPath: '/x.jpg', photoRead: null, photoReadStatus: 'ready', sheetPath: '/s.png', sheetStatus: 'ready',
   sheetError: null, sheetApproved: true, attempt: 1,
   guide: null, guideStatus: 'none', guideError: null, guideAttempt: 0, capsuleOwned: [],
+  looks: null, looksStatus: 'none', looksError: null, looksAttempt: 0,
 });
 
 describe('guide schema', () => {

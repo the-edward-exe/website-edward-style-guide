@@ -1,12 +1,22 @@
 ---
 import Base from '../../../layouts/Base.astro';
 import Button from '../../../components/Button.astro';
-import { getProfile } from '../../../lib/profiles';
+import { getProfile, beginLooks } from '../../../lib/profiles';
+import { nextPath } from '../../../lib/questionnaire';
+import { startLooksJob } from '../../../lib/jobs';
 import { aiMode } from '../../../lib/ai/mode';
 
-const profile = await getProfile(Astro.params.id!);
+let profile = await getProfile(Astro.params.id!);
 if (!profile) return Astro.rewrite('/404');
 if (!profile.photoPath) return Astro.redirect(`/p/${profile.id}/photo`);
+
+// Profiles that finished the questionnaire before the looks existed get theirs on first visit.
+if (profile.looksStatus === 'none' && nextPath(profile) === `/p/${profile.id}/sheet`) {
+  const attempt = await beginLooks(profile.id, ['pending', 'ready', 'failed']);
+  if (attempt !== null) startLooksJob(profile.id, attempt);
+  profile = (await getProfile(profile.id))!;
+}
+const { looks, looksStatus, looksError } = profile;
 
 const { sheetStatus: status, sheetError } = profile;
 const demo = aiMode().gemini === 'demo';
@@ -50,13 +60,47 @@ const v = profile.attempt;
     {status === 'ready' && <a class="label dl" href={`/api/p/${profile.id}/image/sheet?download=1`}>Download</a>}
     <a class="label dl" href={`/p/${profile.id}/photo`}>Use a different photo</a>
   </div>
+
+  {looksStatus !== 'none' && (
+    <section class="looks" aria-labelledby="looksTitle">
+      <div class="lhead">
+        <span class="label">10 looks for you</span>
+        <h2 id="looksTitle">Picked for your skin tone and style</h2>
+      </div>
+      {looksStatus === 'pending' && (
+        <div class="lgrid">
+          {Array.from({ length: 10 }, () => <div class="lcard waiting"><span class="strip" /><span class="label pulse">Writing your looks</span></div>)}
+        </div>
+      )}
+      {looksStatus === 'failed' && (
+        <div class="lfail">
+          <span class="error">{looksError}</span>
+          <form method="post" action={`/api/p/${profile.id}/looks`}><Button>Try again</Button></form>
+        </div>
+      )}
+      {looksStatus === 'ready' && looks && (
+        <ol class="lgrid">
+          {looks.looks.map((l, i) => (
+            <li class="lcard">
+              <span class="strip">{l.pieces.map((pc) => <span style={`background:${pc.hex}`} title={pc.color} />)}</span>
+              <span class="label">{String(i + 1).padStart(2, '0')} · {l.style}</span>
+              <span class="lname">{l.name}</span>
+              <ul class="pieces">{l.pieces.map((pc) => <li><i style={`background:${pc.hex}`} />{pc.item}<em>{pc.color}</em></li>)}</ul>
+              <p class="why">{l.why}</p>
+            </li>
+          ))}
+        </ol>
+      )}
+    </section>
+  )}
 </Base>
 
-<script define:vars={{ id: profile.id, status }}>
-  if (status === 'pending') {
+<script define:vars={{ id: profile.id, status, looksStatus }}>
+  // Reload when the sheet or the looks finish.
+  if (status === 'pending' || looksStatus === 'pending') {
     const poll = async () => {
       const s = await fetch(`/api/p/${id}/status`).then((r) => r.json()).catch(() => null);
-      if (s && s.sheetStatus !== 'pending') location.reload();
+      if (s && (s.sheetStatus !== status || s.looksStatus !== looksStatus)) location.reload();
       else setTimeout(poll, 3000);
     };
     setTimeout(poll, 3000);
@@ -77,4 +121,22 @@ const v = profile.attempt;
   .dl { margin-left: 8px; text-decoration: underline; text-underline-offset: 4px; }
   .dl:hover { color: var(--ink); }
   @media (max-width: 760px) { .pair { grid-template-columns: 1fr; } }
+
+  .looks { margin-top: 48px; padding-top: 28px; border-top: 1px solid var(--line); }
+  .lhead { display: flex; flex-direction: column; gap: 6px; margin-bottom: 20px; }
+  .lhead h2 { font-size: var(--text-lg); }
+  .lgrid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--gap); }
+  .lcard { background: var(--surface); padding: 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .lcard.waiting { min-height: 220px; background: var(--chip); }
+  .strip { display: flex; height: 56px; margin: -14px -14px 4px; background: var(--line); }
+  .strip span { flex: 1; }
+  .lname { text-transform: uppercase; letter-spacing: var(--track-label); font-size: var(--text-sm); font-weight: 500; }
+  .pieces { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: var(--text-xs); }
+  .pieces li { display: flex; align-items: center; gap: 6px; }
+  .pieces em { font-style: normal; color: var(--muted); }
+  .pieces i { width: 10px; height: 10px; flex: none; border: 1px solid var(--line); }
+  .why { margin: 0; font-size: var(--text-xs); color: var(--muted); }
+  .lfail { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+  @media (max-width: 1100px) { .lgrid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  @media (max-width: 760px) { .lgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 </style>

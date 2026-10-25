@@ -43,7 +43,7 @@ export type Outfit = z.infer<typeof OutfitSchema>;
 export type Piece = z.infer<typeof PieceSchema>;
 
 /** The human label for an answer, as the person saw it in the questionnaire. */
-function answerText(a: Partial<Answers>, key: AnswerKey): string {
+export function answerText(a: Partial<Answers>, key: AnswerKey): string {
   const field = STEPS.flatMap((s) => s.questions.flatMap((q) => q.fields)).find((f) => f.key === key);
   const v = a[key];
   if (v === undefined || (Array.isArray(v) && v.length === 0)) return 'not given';

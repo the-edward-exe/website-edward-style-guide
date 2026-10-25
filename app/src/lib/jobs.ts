@@ -1,8 +1,9 @@
-import { getProfile, finishSheet, finishPhotoRead, finishGuide } from './profiles';
+import { getProfile, finishSheet, finishPhotoRead, finishGuide, finishLooks } from './profiles';
 import { readImage, saveImage } from './storage';
 import { generateCharacterSheet } from './ai/gemini';
 import { readPhoto } from './ai/claude';
 import { generateGuide } from './ai/guide';
+import { generateLooks } from './ai/looks';
 import { generateTryon } from './ai/tryon';
 import { getTryon, finishTryon } from './tryons';
 
@@ -104,4 +105,25 @@ export function startTryonJob(tryonId: string): void {
 
 export function startGuideJob(id: string, attempt: number): void {
   void runGuideJob(id, attempt);
+}
+
+export async function runLooksJob(id: string, attempt: number): Promise<void> {
+  try {
+    const p = await getProfile(id);
+    if (!p || p.looksAttempt !== attempt || !p.photoPath) return;
+    let looks;
+    try {
+      looks = await generateLooks(p, await readImage(p.photoPath));
+    } catch (e) {
+      await finishLooks(id, attempt, { error: message(e) });
+      return;
+    }
+    await finishLooks(id, attempt, { looks });
+  } catch (e) {
+    console.error('looks job failed', e);
+  }
+}
+
+export function startLooksJob(id: string, attempt: number): void {
+  void runLooksJob(id, attempt);
 }

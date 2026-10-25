@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
-import { getProfile, saveAnswers, renameProfile } from '../../../../lib/profiles';
+import { getProfile, saveAnswers, renameProfile, beginLooks } from '../../../../lib/profiles';
+import { startLooksJob } from '../../../../lib/jobs';
 import { parseStep, nextPath } from '../../../../lib/questionnaire';
 import { seeOther, readForm, wantsJson } from '../../../../lib/http';
 
@@ -20,6 +21,11 @@ export const POST: APIRoute = async ({ params, url, request }) => {
   if (Object.keys(valid).length) await saveAnswers(profile.id, valid);
   // After the last step, go to the first unanswered step if any, else on to the sheet.
   const next = step === 4 ? nextPath((await getProfile(profile.id))!) : `/p/${profile.id}/q/${step + 1}`;
+  // Headed for the sheet: start the ten looks now so they're ready while the sheet builds.
+  if (next === `/p/${profile.id}/sheet`) {
+    const attempt = await beginLooks(profile.id, ['pending']);
+    if (attempt !== null) startLooksJob(profile.id, attempt);
+  }
   if (wantsJson(request)) return Response.json(missing.length ? { ok: false, missing } : { ok: true, next });
   if (missing.length) return seeOther(`/p/${profile.id}/q/${step}?missing=${missing.join(',')}`);
   return seeOther(next);
