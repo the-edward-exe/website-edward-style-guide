@@ -108,10 +108,16 @@ export async function approveSheet(id: string): Promise<void> {
   await sql`update profiles set sheet_approved = true where id = ${id}`;
 }
 
-export async function beginGuide(id: string): Promise<number> {
+/**
+ * Starts a guide run and returns its attempt. With `unless`, the check and the bump happen in one
+ * statement, so two simultaneous requests can't both start a run; it returns null when blocked.
+ */
+export async function beginGuide(id: string): Promise<number>;
+export async function beginGuide(id: string, unless: JobStatus[]): Promise<number | null>;
+export async function beginGuide(id: string, unless: JobStatus[] = []): Promise<number | null> {
   const [r] = await sql`update profiles set guide_attempt = guide_attempt + 1, guide_status = 'pending', guide_error = null
-    where id = ${id} returning guide_attempt`;
-  return r.guide_attempt;
+    where id = ${id} and not (guide_status = any(${unless}::text[])) returning guide_attempt`;
+  return r ? r.guide_attempt : null;
 }
 
 export async function finishGuide(id: string, attempt: number, r: { guide: Guide } | { error: string }): Promise<boolean> {

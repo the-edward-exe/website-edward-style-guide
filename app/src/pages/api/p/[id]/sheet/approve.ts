@@ -8,9 +8,8 @@ export const POST: APIRoute = async ({ params }) => {
   if (!profile) return new Response('Not found', { status: 404 });
   if (profile.sheetStatus !== 'ready') return new Response('Sheet not ready', { status: 409 });
   await approveSheet(profile.id);
-  // Write the guide once; a second approval (or back-button resubmit) doesn't start another run.
-  if (profile.guideStatus !== 'pending' && profile.guideStatus !== 'ready') {
-    startGuideJob(profile.id, await beginGuide(profile.id));
-  }
+  // Write the guide once; a double-click or second tab doesn't start another run.
+  const attempt = await beginGuide(profile.id, ['pending', 'ready']);
+  if (attempt !== null) startGuideJob(profile.id, attempt);
   return seeOther(`/p/${profile.id}`);
 };

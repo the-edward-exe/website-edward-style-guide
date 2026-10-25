@@ -7,6 +7,7 @@ import { listTryons } from '../../../lib/tryons';
 import { nextPath } from '../../../lib/questionnaire';
 import { STORES } from '../../../lib/stores';
 import { aiMode } from '../../../lib/ai/mode';
+import { tryonPrompt } from '../../../lib/ai/tryon';
 
 const profile = await getProfile(Astro.params.id!);
 if (!profile) return Astro.rewrite('/404');
@@ -22,6 +23,7 @@ const stores = Object.fromEntries(Object.entries(STORES).map(([k, s]) => [k, { n
 const occasions = ['All', 'Work', 'Weekend', 'Evening', 'Travel'];
 const seasons = ['All', 'Spring', 'Summer', 'Fall', 'Winter'];
 const demo = aiMode();
+const prompts = g ? Object.fromEntries(g.outfits.map((o) => [o.id, tryonPrompt(profile, o)])) : {};
 ---
 <Base title={profile.name}>
   <header class="top">
@@ -161,7 +163,8 @@ const demo = aiMode();
           <p class="status label" id="oStatus"></p>
           <details class="prompt">
             <summary class="label">Edit the prompt</summary>
-            <textarea id="oPrompt" class="input" rows="7" placeholder="Leave empty to use the default prompt for this outfit."></textarea>
+            <textarea id="oPrompt" class="input" rows="9"></textarea>
+            <button type="button" class="label link reset" id="oReset">Reset prompt</button>
           </details>
         </div>
         <div class="oright">
@@ -174,12 +177,12 @@ const demo = aiMode();
   )}
 </Base>
 
-<script is:inline type="application/json" id="data" set:html={JSON.stringify({ id: profile.id, name: profile.name, guideStatus: profile.guideStatus, outfits: g?.outfits ?? [], tryons, stores })} />
+<script is:inline type="application/json" id="data" set:html={JSON.stringify({ id: profile.id, name: profile.name, guideStatus: profile.guideStatus, outfits: g?.outfits ?? [], tryons, stores, prompts })} />
 
 <script>
   type T = { id: string; outfitId: string; version: number; status: string; error: string | null };
   const data = JSON.parse(document.getElementById('data')!.textContent!);
-  const { id, outfits, stores } = data;
+  const { id, outfits, stores, prompts } = data;
   let tryons: T[] = data.tryons;
   const $ = (s: string) => document.getElementById(s)!;
 
@@ -261,7 +264,7 @@ const demo = aiMode();
     $('oMeta').textContent = `${o.occasion} / ${o.season}`;
     $('oTitle').textContent = o.name;
     $('oWhy').textContent = o.why;
-    ($('oPrompt') as HTMLTextAreaElement).value = '';
+    ($('oPrompt') as HTMLTextAreaElement).value = prompts[o.id] ?? '';
     $('oPieces').innerHTML = o.pieces.map((x: any) => {
       const q = encodeURIComponent(x.search);
       const links = x.stores.map((s: string) => stores[s] ? `<a class="store" href="${stores[s].url}" target="_blank" rel="noopener">${esc(stores[s].name)}</a>` : '').join('')
@@ -306,18 +309,23 @@ const demo = aiMode();
     if (b) { shown = tryons.find((t) => t.id === b.dataset.t) ?? null; paint(); }
   });
   document.getElementById('oTry')?.addEventListener('click', async () => {
-    const prompt = ($('oPrompt') as HTMLTextAreaElement).value.trim();
+    const btn = $('oTry') as HTMLButtonElement;
+    if (btn.disabled) return;
+    btn.disabled = true; // a double-click makes one version, not two requests
+    const typed = ($('oPrompt') as HTMLTextAreaElement).value.trim();
+    const prompt = typed && typed !== prompts[current.id] ? typed : '';
     const res = await fetch(`/api/p/${id}/tryons`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ outfitId: current.id, ...(prompt ? { prompt } : {}) }),
     }).catch(() => null);
     const out = res ? await res.json().catch(() => null) : null;
-    if (!out?.tryon) { $('oStatus').textContent = out?.error ?? 'Could not start. Try again.'; return; }
+    if (!out?.tryon) { btn.disabled = false; $('oStatus').textContent = out?.error ?? 'Could not start. Try again.'; return; }
     tryons.push(out.tryon);
     shown = out.tryon;
     paint();
     poll();
   });
+  document.getElementById('oReset')?.addEventListener('click', () => { ($('oPrompt') as HTMLTextAreaElement).value = prompts[current.id] ?? ''; });
   document.getElementById('oClose')?.addEventListener('click', () => dialog!.close());
   dialog?.addEventListener('click', (e) => { if (e.target === dialog) dialog.close(); });
   if (tryons.some((t) => t.status === 'pending')) poll();
@@ -404,6 +412,7 @@ const demo = aiMode();
   .status { min-height: 1em; }
   .prompt textarea { width: 100%; margin-top: 8px; font-size: var(--text-xs); line-height: 1.5; resize: vertical; }
   .prompt summary { cursor: pointer; }
+  .reset { background: none; border: 0; padding: 6px 0 0; font-family: var(--font); }
   :global(.piece) { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); font-size: var(--text-sm); }
   :global(.piece .dot) { width: 34px; height: 46px; border: 1px solid var(--line); }
   :global(.links) { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }

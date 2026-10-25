@@ -23,6 +23,17 @@ function toTryon(r: Record<string, any>): Tryon {
 
 /** A new version for this outfit: one more than the highest so far. */
 export async function createTryon(profileId: string, outfitId: string, prompt: string): Promise<Tryon> {
+  // Two clicks at once can pick the same next version; the unique index rejects one, so retry it.
+  for (let tries = 0; ; tries++) {
+    try {
+      return await insertTryon(profileId, outfitId, prompt);
+    } catch (e: any) {
+      if (e?.code !== '23505' || tries >= 4) throw e;
+    }
+  }
+}
+
+async function insertTryon(profileId: string, outfitId: string, prompt: string): Promise<Tryon> {
   const [r] = await sql`
     insert into tryons (id, profile_id, outfit_id, version, prompt)
     values (${randomBytes(12).toString('base64url')}, ${profileId}, ${outfitId},

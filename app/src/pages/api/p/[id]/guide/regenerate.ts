@@ -7,6 +7,7 @@ export const POST: APIRoute = async ({ params }) => {
   const profile = await getProfile(params.id!);
   if (!profile) return new Response('Not found', { status: 404 });
   if (!profile.sheetApproved) return new Response('Approve the sheet first', { status: 409 });
-  startGuideJob(profile.id, await beginGuide(profile.id));
+  const attempt = await beginGuide(profile.id, ['pending']);
+  if (attempt !== null) startGuideJob(profile.id, attempt);
   return seeOther(`/p/${profile.id}`);
 };

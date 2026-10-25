@@ -4,7 +4,7 @@ vi.mock('../src/lib/ai/guide', () => ({ generateGuide: vi.fn() }));
 vi.mock('../src/lib/ai/gemini', () => ({ generateCharacterSheet: vi.fn() }));
 
 import { sql } from '../src/lib/db';
-import { createProfile, getProfile, setPhoto, finishSheet, beginGuide } from '../src/lib/profiles';
+import { createProfile, getProfile, setPhoto, finishSheet, beginGuide, finishGuide } from '../src/lib/profiles';
 import { saveImage } from '../src/lib/storage';
 import { generateGuide } from '../src/lib/ai/guide';
 import { runGuideJob } from '../src/lib/jobs';
@@ -62,10 +62,11 @@ describe('approve and regenerate', () => {
     expect((await getProfile(id))?.guideAttempt).toBe(1);
   });
 
-  it('regenerate starts a new run', async () => {
+  it('regenerate starts a new run once the last one is done', async () => {
     const id = await readyProfile();
     vi.mocked(generateGuide).mockReturnValue(new Promise(() => {}));
     await call(approve, id);
+    await finishGuide(id, 1, { error: 'x' });
     const res = await call(regenerate, id);
     expect(res.status).toBe(303);
     expect((await getProfile(id))?.guideAttempt).toBe(2);
