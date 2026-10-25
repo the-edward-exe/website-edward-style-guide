@@ -1,0 +1,104 @@
+---
+import Base from '../../../layouts/Base.astro';
+import { getProfile } from '../../../lib/profiles';
+import { STEPS, SKIN_SWATCHES, COLOR_SWATCHES, nextPath, type Field } from '../../../lib/questionnaire';
+
+const profile = await getProfile(Astro.params.id!);
+if (!profile) return Astro.rewrite('/404');
+const next = nextPath(profile);
+if (next !== `/p/${profile.id}`) return Astro.redirect(next);
+
+const a = profile.answers as Record<string, unknown>;
+const labelFor = (f: Field, v: string) => f.options?.find((o) => o.value === v)?.label ?? v;
+function display(f: Field): string {
+  const v = a[f.key];
+  if (v === undefined || (Array.isArray(v) && v.length === 0)) return '—';
+  if (Array.isArray(v)) return v.map((x) => labelFor(f, String(x))).join(', ');
+  return labelFor(f, String(v));
+}
+const colorHex = Object.fromEntries(COLOR_SWATCHES);
+const skinHex = SKIN_SWATCHES.find((s) => s.tone === Number(a.skinTone))?.hex;
+---
+<Base title={profile.name}>
+  <div class="layout">
+    <section class="sheet">
+      <span class="label">Character sheet · approved</span>
+      <img src={`/api/p/${profile.id}/image/sheet?v=${profile.attempt}`} alt={`${profile.name}'s character sheet`} />
+      <div class="row">
+        <a class="label link" href={`/api/p/${profile.id}/image/sheet?download=1`}>Download</a>
+        <a class="label link" href={`/p/${profile.id}/sheet`}>Rebuild</a>
+      </div>
+    </section>
+
+    <section class="info">
+      <span class="label">Style file</span>
+      <h1>{profile.name}</h1>
+
+      <div class="next">
+        <span class="label">Your guide is next</span>
+        <p>Palette, fit rules, outfits and the dressing room come in the next build. Your answers and sheet are saved.</p>
+      </div>
+
+      {STEPS.map((s) => (
+        <div class="group">
+          <div class="ghead">
+            <h2>{s.title}</h2>
+            <a class="label link" href={`/p/${profile.id}/q/${s.n}`}>Edit</a>
+          </div>
+          <dl>
+            {s.questions.flatMap((q) => q.fields).map((f) => (
+              <div class="pairrow">
+                <dt class="label">{f.label ?? s.questions.find((q) => q.fields.includes(f))!.title}</dt>
+                <dd>
+                  {f.kind === 'skin' && skinHex && <span class="chipcolor" style={`background:${skinHex}`} />}
+                  {f.kind === 'colors' && Array.isArray(a[f.key]) && (a[f.key] as string[]).map((c) => <span class="chipcolor" title={c} style={`background:${colorHex[c]}`} />)}
+                  {f.kind === 'skin' ? `Tone ${a.skinTone}` : f.kind === 'colors' ? (Array.isArray(a[f.key]) && (a[f.key] as string[]).length ? '' : '—') : display(f)}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      ))}
+
+      <details class="danger">
+        <summary class="label">Delete profile</summary>
+        <form method="post" action={`/api/p/${profile.id}/delete`} class="delform">
+          <label class="field">
+            <span class="label">Type DELETE to remove {profile.name} and every photo</span>
+            <input class="input" name="confirm" required pattern="[Dd][Ee][Ll][Ee][Tt][Ee]" autocomplete="off" />
+          </label>
+          <button class="del" type="submit">Delete</button>
+        </form>
+      </details>
+    </section>
+  </div>
+</Base>
+
+<style>
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 48px; align-items: start; }
+  .sheet { display: flex; flex-direction: column; gap: 10px; position: sticky; top: 72px; }
+  .sheet img { background: var(--surface); max-height: calc(100vh - 160px); width: auto; object-fit: contain; }
+  .row { display: flex; gap: 16px; }
+  .link { text-decoration: underline; text-underline-offset: 4px; }
+  .link:hover { color: var(--ink); }
+  .info { display: flex; flex-direction: column; gap: 10px; }
+  .next { background: var(--surface); padding: 16px; margin: 12px 0 8px; display: flex; flex-direction: column; gap: 6px; }
+  .next p { font-size: var(--text-sm); color: var(--muted); }
+  .group { border-top: 1px solid var(--line); padding: 16px 0 6px; }
+  .ghead { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  dl { margin: 0; }
+  .pairrow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 12px; padding: 6px 0; }
+  dt { padding-top: 2px; }
+  dd { margin: 0; font-size: var(--text-sm); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .chipcolor { display: inline-block; width: 16px; height: 16px; border: 1px solid var(--line); }
+  .danger { border-top: 1px solid var(--line); padding-top: 16px; margin-top: 12px; }
+  .danger summary { cursor: pointer; color: var(--bad); }
+  .delform { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-top: 12px; }
+  .delform .field { flex: 1 1 240px; }
+  .del {
+    font: 500 var(--text-xs)/1 var(--font); text-transform: uppercase; letter-spacing: var(--track-label);
+    padding: 13px 22px; border: 1px solid var(--bad); background: transparent; color: var(--bad); cursor: pointer;
+  }
+  .del:hover { background: var(--bad); color: var(--accent-ink); }
+  @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } .sheet { position: static; } }
+</style>

@@ -3,14 +3,14 @@ import { getProfile, setPhoto } from '../../../../lib/profiles';
 import { normalizePhoto, PhotoError } from '../../../../lib/images';
 import { saveImage } from '../../../../lib/storage';
 import { startPhotoJobs } from '../../../../lib/jobs';
-import { seeOther } from '../../../../lib/http';
+import { seeOther, readForm } from '../../../../lib/http';
 
 export const POST: APIRoute = async ({ params, request }) => {
   const profile = await getProfile(params.id!);
   if (!profile) return new Response('Not found', { status: 404 });
   const back = (msg: string) => seeOther(`/p/${profile.id}/photo?error=${encodeURIComponent(msg)}`);
 
-  const file = (await request.formData()).get('photo');
+  const file = (await readForm(request)).get('photo');
   if (!(file instanceof File) || file.size === 0) return back('CHOOSE A PHOTO FIRST.');
   try {
     const jpeg = await normalizePhoto(Buffer.from(await file.arrayBuffer()));
