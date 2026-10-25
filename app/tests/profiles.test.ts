@@ -3,10 +3,10 @@ import { sql } from '../src/lib/db';
 import { newProfileId } from '../src/lib/ids';
 import {
   createProfile, getProfile, listProfiles, saveAnswers,
-  setPhoto, finishSheet, deleteProfile, retrySheet,
+  setPhoto, finishSheet, deleteProfile, retrySheet, beginGuide, finishGuide, setCapsuleOwned,
 } from '../src/lib/profiles';
 
-beforeEach(async () => { await sql`truncate profiles`; });
+beforeEach(async () => { await sql`truncate profiles cascade`; });
 
 describe('ids', () => {
   it('makes 22-char url-safe ids', () => {
@@ -47,6 +47,20 @@ describe('profiles', () => {
     await setPhoto(p.id, '/x/photo.jpg');
     await retrySheet(p.id);
     expect((await getProfile(p.id))?.photoReadStatus).toBe('failed');
+  });
+
+  it('ignores a guide from a stale attempt', async () => {
+    const p = await createProfile('Ana');
+    const first = await beginGuide(p.id);
+    await beginGuide(p.id);
+    expect(await finishGuide(p.id, first, { error: 'old' })).toBe(false);
+    expect((await getProfile(p.id))?.guideStatus).toBe('pending');
+  });
+
+  it('saves owned capsule items', async () => {
+    const p = await createProfile('Ana');
+    await setCapsuleOwned(p.id, [0, 3]);
+    expect((await getProfile(p.id))?.capsuleOwned).toEqual([0, 3]);
   });
 
   it('returns null for an unknown id', async () => {

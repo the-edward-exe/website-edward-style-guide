@@ -2,6 +2,7 @@ import { sql } from './db';
 import { newProfileId, isProfileId } from './ids';
 import type { Answers } from './questionnaire';
 import type { PhotoRead } from './ai/claude';
+import type { Guide } from './guide';
 
 export type JobStatus = 'none' | 'pending' | 'ready' | 'failed';
 
@@ -18,6 +19,11 @@ export type Profile = {
   sheetError: string | null;
   sheetApproved: boolean;
   attempt: number;
+  guide: Guide | null;
+  guideStatus: JobStatus;
+  guideError: string | null;
+  guideAttempt: number;
+  capsuleOwned: number[];
 };
 
 function toProfile(r: Record<string, any>): Profile {
@@ -34,6 +40,11 @@ function toProfile(r: Record<string, any>): Profile {
     sheetError: r.sheet_error,
     sheetApproved: r.sheet_approved,
     attempt: r.attempt,
+    guide: r.guide ?? null,
+    guideStatus: r.guide_status ?? 'none',
+    guideError: r.guide_error ?? null,
+    guideAttempt: r.guide_attempt ?? 0,
+    capsuleOwned: r.capsule_owned ?? [],
   };
 }
 
@@ -95,6 +106,25 @@ export async function retrySheet(id: string): Promise<number> {
 
 export async function approveSheet(id: string): Promise<void> {
   await sql`update profiles set sheet_approved = true where id = ${id}`;
+}
+
+export async function beginGuide(id: string): Promise<number> {
+  const [r] = await sql`update profiles set guide_attempt = guide_attempt + 1, guide_status = 'pending', guide_error = null
+    where id = ${id} returning guide_attempt`;
+  return r.guide_attempt;
+}
+
+export async function finishGuide(id: string, attempt: number, r: { guide: Guide } | { error: string }): Promise<boolean> {
+  const rows = 'guide' in r
+    ? await sql`update profiles set guide = ${sql.json(r.guide as any)}, guide_status = 'ready', guide_error = null
+        where id = ${id} and guide_attempt = ${attempt} returning id`
+    : await sql`update profiles set guide_status = 'failed', guide_error = ${r.error}
+        where id = ${id} and guide_attempt = ${attempt} returning id`;
+  return rows.length > 0;
+}
+
+export async function setCapsuleOwned(id: string, owned: number[]): Promise<void> {
+  await sql`update profiles set capsule_owned = ${sql.json(owned)} where id = ${id}`;
 }
 
 export async function deleteProfile(id: string): Promise<boolean> {

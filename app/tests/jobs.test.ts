@@ -23,7 +23,7 @@ async function profileWithPhoto() {
 }
 
 beforeEach(async () => {
-  await sql`truncate profiles`;
+  await sql`truncate profiles cascade`;
   vi.mocked(generateCharacterSheet).mockReset();
   vi.mocked(readPhoto).mockReset();
 });

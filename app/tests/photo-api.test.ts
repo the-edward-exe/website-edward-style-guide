@@ -7,7 +7,7 @@ import { sql } from '../src/lib/db';
 import { createProfile, getProfile } from '../src/lib/profiles';
 import { POST } from '../src/pages/api/p/[id]/photo';
 
-beforeEach(async () => { await sql`truncate profiles`; });
+beforeEach(async () => { await sql`truncate profiles cascade`; });
 
 async function upload(id: string, file: string, type: string) {
   const form = new FormData();

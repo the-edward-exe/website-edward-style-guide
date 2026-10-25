@@ -7,7 +7,7 @@ import { onRequest } from '../src/middleware';
 import { POST as del } from '../src/pages/api/p/[id]/delete';
 import { formRequest } from './helpers/form';
 
-beforeEach(async () => { await sql`truncate profiles`; });
+beforeEach(async () => { await sql`truncate profiles cascade`; });
 
 function ctx(path: string) {
   return {

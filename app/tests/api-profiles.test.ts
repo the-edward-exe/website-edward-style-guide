@@ -3,7 +3,7 @@ import { sql } from '../src/lib/db';
 import { POST } from '../src/pages/api/profiles';
 import { formRequest } from './helpers/form';
 
-beforeEach(async () => { await sql`truncate profiles`; });
+beforeEach(async () => { await sql`truncate profiles cascade`; });
 
 describe('POST /api/profiles', () => {
   it('creates a profile and sends the person to the photo step', async () => {

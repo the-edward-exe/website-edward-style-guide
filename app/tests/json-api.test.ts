@@ -4,7 +4,7 @@ import { createProfile, getProfile, setPhoto } from '../src/lib/profiles';
 import { POST as createRoute } from '../src/pages/api/profiles';
 import { POST as answersRoute } from '../src/pages/api/p/[id]/answers';
 
-beforeEach(async () => { await sql`truncate profiles`; });
+beforeEach(async () => { await sql`truncate profiles cascade`; });
 
 const jsonForm = (url: string, fields: [string, string][]) => {
   const body = new URLSearchParams(fields);

@@ -10,7 +10,7 @@ import { POST as retry } from '../src/pages/api/p/[id]/sheet/retry';
 
 const call = (fn: any, id: string) => fn({ params: { id }, request: new Request('http://localhost/', { method: 'POST' }) });
 
-beforeEach(async () => { await sql`truncate profiles`; vi.mocked(startSheetJob).mockReset(); });
+beforeEach(async () => { await sql`truncate profiles cascade`; vi.mocked(startSheetJob).mockReset(); });
 
 async function withPendingSheet() {
   const p = await createProfile('Ana');
