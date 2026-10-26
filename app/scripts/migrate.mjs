@@ -20,6 +20,7 @@ for (const name of (await readdir(dir)).filter((f) => f.endsWith('.sql')).sort()
 // restart. Mark it failed so the person gets a Try again button instead of waiting forever.
 const interrupted = 'INTERRUPTED. TRY AGAIN.';
 await sql`update tryons set status = 'failed', error = ${interrupted} where status = 'pending'`;
+await sql`update look_images set status = 'failed', error = ${interrupted} where status = 'pending'`;
 await sql`update profiles set guide_status = 'failed', guide_error = ${interrupted} where guide_status = 'pending'`;
 await sql`update profiles set looks_status = 'failed', looks_error = ${interrupted} where looks_status = 'pending'`;
 await sql`update profiles set sheet_status = 'failed', sheet_error = ${interrupted} where sheet_status = 'pending'`;

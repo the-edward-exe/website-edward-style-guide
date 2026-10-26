@@ -1,4 +1,4 @@
-import { getProfile, finishSheet, finishPhotoRead, finishGuide, finishLooks } from './profiles';
+import { getProfile, finishSheet, finishPhotoRead, finishGuide, finishLooks, type Profile } from './profiles';
 import { readImage, saveImage } from './storage';
 import { generateCharacterSheet } from './ai/gemini';
 import { readPhoto } from './ai/claude';
@@ -6,6 +6,7 @@ import { generateGuide } from './ai/guide';
 import { generateLooks } from './ai/looks';
 import { generateTryon } from './ai/tryon';
 import { getTryon, finishTryon } from './tryons';
+import { beginLookImages, finishLookImage, keyOf, lookImagePrompt, type LookImageKey } from './look-images';
 
 const message = (e: unknown) => (e instanceof Error ? e.message : 'SOMETHING WENT WRONG. TRY AGAIN.');
 
@@ -31,7 +32,7 @@ export async function runSheetJob(id: string, attempt: number): Promise<void> {
       return;
     }
     if (!(await stillCurrent(id, attempt))) return;
-    await finishSheet(id, attempt, { path: await saveImage(id, 'sheet', sheet) });
+    if (await finishSheet(id, attempt, { path: await saveImage(id, 'sheet', sheet) })) await runLookImages(id);
   } catch (e) {
     console.error('sheet job failed', e);
   }
@@ -118,7 +119,7 @@ export async function runLooksJob(id: string, attempt: number): Promise<void> {
       await finishLooks(id, attempt, { error: message(e) });
       return;
     }
-    await finishLooks(id, attempt, { looks });
+    if (await finishLooks(id, attempt, { looks })) await runLookImages(id);
   } catch (e) {
     console.error('looks job failed', e);
   }
@@ -126,4 +127,56 @@ export async function runLooksJob(id: string, attempt: number): Promise<void> {
 
 export function startLooksJob(id: string, attempt: number): void {
   void runLooksJob(id, attempt);
+}
+
+// Gemini handles a few images at once; ten in parallel mostly hits rate limits.
+const LOOK_IMAGES_AT_ONCE = 3;
+
+async function stillCurrentLooks(k: LookImageKey): Promise<Profile | null> {
+  const p = await getProfile(k.id);
+  return p && p.looksAttempt === k.looksAttempt && p.attempt === k.sheetAttempt ? p : null;
+}
+
+export async function runLookImage(k: LookImageKey, idx: number): Promise<void> {
+  try {
+    const p = await stillCurrentLooks(k);
+    const look = p?.looks?.looks[idx];
+    if (!p || !look || !p.sheetPath) return;
+    let image: Buffer;
+    try {
+      image = await generateTryon(await readImage(p.sheetPath), lookImagePrompt(p, look));
+    } catch (e) {
+      await finishLookImage(k, idx, { error: message(e) });
+      return;
+    }
+    // A new sheet, new looks or a deleted profile while Gemini worked: write nothing.
+    if (!(await stillCurrentLooks(k))) return;
+    await finishLookImage(k, idx, { path: await saveImage(k.id, 'look', image) });
+  } catch (e) {
+    console.error('look image job failed', e);
+  }
+}
+
+/** Makes the look pictures once both the looks and the character sheet are ready. Safe to call twice. */
+export async function runLookImages(id: string): Promise<void> {
+  try {
+    const p = await getProfile(id);
+    if (!p) return;
+    const queue = await beginLookImages(p);
+    const k = keyOf(p);
+    const worker = async () => {
+      for (let idx = queue.shift(); idx !== undefined; idx = queue.shift()) await runLookImage(k, idx);
+    };
+    await Promise.all(Array.from({ length: LOOK_IMAGES_AT_ONCE }, worker));
+  } catch (e) {
+    console.error('look images failed', e);
+  }
+}
+
+export function startLookImages(id: string): void {
+  void runLookImages(id);
+}
+
+export function startLookImage(k: LookImageKey, idx: number): void {
+  void runLookImage(k, idx);
 }

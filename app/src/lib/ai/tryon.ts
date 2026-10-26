@@ -4,7 +4,7 @@ import { demoTryon } from './demo-sheet';
 import type { Outfit } from '../guide';
 import type { Profile } from '../profiles';
 
-const FIT: Record<string, string> = {
+export const FIT: Record<string, string> = {
   taller: 'long unbroken lines and a clean hem so they read taller',
   broader: 'structure at the shoulders',
   streamline: 'clean drape through the middle, nothing clinging',

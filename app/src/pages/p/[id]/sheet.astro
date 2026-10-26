@@ -3,7 +3,8 @@ import Base from '../../../layouts/Base.astro';
 import Button from '../../../components/Button.astro';
 import { getProfile, beginLooks } from '../../../lib/profiles';
 import { nextPath } from '../../../lib/questionnaire';
-import { startLooksJob } from '../../../lib/jobs';
+import { startLooksJob, startLookImages } from '../../../lib/jobs';
+import { listLookImages } from '../../../lib/look-images';
 import { aiMode } from '../../../lib/ai/mode';
 
 let profile = await getProfile(Astro.params.id!);
@@ -16,7 +17,12 @@ if (profile.looksStatus === 'none' && nextPath(profile) === `/p/${profile.id}/sh
   if (attempt !== null) startLooksJob(profile.id, attempt);
   profile = (await getProfile(profile.id))!;
 }
+// Looks written before they had pictures get them now. Does nothing once the pictures are claimed.
+startLookImages(profile.id);
+
 const { looks, looksStatus, looksError } = profile;
+const lookImages = await listLookImages(profile);
+const version = (path: string | null | undefined) => path?.match(/look-(\d+)/)?.[1] ?? '';
 
 const { sheetStatus: status, sheetError } = profile;
 const demo = aiMode().gemini === 'demo';
@@ -66,10 +72,16 @@ const v = profile.attempt;
       <div class="lhead">
         <span class="label">10 looks for you</span>
         <h2 id="looksTitle">Picked for your skin tone and style</h2>
+        {looksStatus === 'ready' && (
+          <p class="label">
+            Each look is made on your character sheet. {status === 'ready' ? 'Pictures take a minute or two.' : 'Pictures start once your sheet is ready.'}
+            <a class="dl" id="lookZip" href={`/api/p/${profile.id}/looks/zip`} hidden={!lookImages.some((i) => i.status === 'ready')}>Download all</a>
+          </p>
+        )}
       </div>
       {looksStatus === 'pending' && (
         <div class="lgrid">
-          {Array.from({ length: 10 }, () => <div class="lcard waiting"><span class="strip" /><span class="label pulse">Writing your looks</span></div>)}
+          {Array.from({ length: 10 }, () => <div class="lcard"><div class="lframe waiting"><span class="label pulse">Writing your looks</span></div></div>)}
         </div>
       )}
       {looksStatus === 'failed' && (
@@ -80,15 +92,34 @@ const v = profile.attempt;
       )}
       {looksStatus === 'ready' && looks && (
         <ol class="lgrid">
-          {looks.looks.map((l, i) => (
-            <li class="lcard">
-              <span class="strip">{l.pieces.map((pc) => <span style={`background:${pc.hex}`} title={pc.color} />)}</span>
-              <span class="label">{String(i + 1).padStart(2, '0')} · {l.style}</span>
-              <span class="lname">{l.name}</span>
-              <ul class="pieces">{l.pieces.map((pc) => <li><i style={`background:${pc.hex}`} />{pc.item}<em>{pc.color}</em></li>)}</ul>
-              <p class="why">{l.why}</p>
-            </li>
-          ))}
+          {looks.looks.map((l, i) => {
+            const img = lookImages.find((x) => x.idx === i);
+            // No row yet while the claim is in flight: show it as being made if it can be.
+            const state = img?.status ?? (status === 'ready' ? 'pending' : 'waiting');
+            const n = i + 1;
+            return (
+              <li class="lcard" id={`look-${n}`}>
+                <div class:list={['lframe', { waiting: state !== 'ready' }]} data-n={n} data-status={state} data-v={version(img?.path)} data-alt={`${profile.name} wearing ${l.name}`}>
+                  {state === 'ready' && <img src={`/api/p/${profile.id}/looks/${n}?v=${version(img?.path)}`} alt={`${profile.name} wearing ${l.name}`} loading="lazy" />}
+                  {state === 'pending' && <span class="label pulse">Dressing you</span>}
+                  {state === 'waiting' && <span class="label">{status === 'failed' ? 'Needs your character sheet' : 'Waiting for your sheet'}</span>}
+                  {state === 'failed' && (
+                    <>
+                      <span class="error">{img?.error}</span>
+                      <form method="post" action={`/api/p/${profile.id}/looks/${n}`}><Button>Try again</Button></form>
+                    </>
+                  )}
+                </div>
+                <div class="lmeta">
+                  <span class="label">{String(n).padStart(2, '0')} · {l.style}</span>
+                  <a class="label dl" href={`/api/p/${profile.id}/looks/${n}?download=1`} hidden={state !== 'ready'}>Download</a>
+                </div>
+                <span class="lname">{l.name}</span>
+                <ul class="pieces">{l.pieces.map((pc) => <li><i style={`background:${pc.hex}`} />{pc.item}<em>{pc.color}</em></li>)}</ul>
+                <p class="why">{l.why}</p>
+              </li>
+            );
+          })}
         </ol>
       )}
     </section>
@@ -96,15 +127,47 @@ const v = profile.attempt;
 </Base>
 
 <script define:vars={{ id: profile.id, status, looksStatus }}>
-  // Reload when the sheet or the looks finish.
-  if (status === 'pending' || looksStatus === 'pending') {
-    const poll = async () => {
-      const s = await fetch(`/api/p/${id}/status`).then((r) => r.json()).catch(() => null);
-      if (s && (s.sheetStatus !== status || s.looksStatus !== looksStatus)) location.reload();
-      else setTimeout(poll, 3000);
-    };
-    setTimeout(poll, 3000);
+  // The sheet or the written looks finishing reloads the page. Look pictures swap in place as each one lands.
+  const frames = () => [...document.querySelectorAll('.lframe[data-n]')];
+  const busy = () => status === 'pending' || looksStatus === 'pending' || frames().some((f) => f.dataset.status === 'pending');
+
+  function paint(frame, img) {
+    // A failure needs the server-rendered Try again button.
+    if (img.status === 'failed') return location.reload();
+    const n = frame.dataset.n;
+    frame.dataset.status = img.status;
+    frame.dataset.v = img.v ?? '';
+    frame.classList.toggle('waiting', img.status !== 'ready');
+    frame.replaceChildren();
+    if (img.status === 'ready') {
+      const el = document.createElement('img');
+      el.src = `/api/p/${id}/looks/${n}?v=${img.v}`;
+      el.alt = frame.dataset.alt;
+      frame.append(el);
+    } else if (img.status === 'pending') {
+      const el = document.createElement('span');
+      el.className = 'label pulse';
+      el.textContent = 'Dressing you';
+      frame.append(el);
+    }
+    const dl = frame.parentElement.querySelector('.lmeta a');
+    if (dl) dl.hidden = img.status !== 'ready';
   }
+
+  const poll = async () => {
+    const s = await fetch(`/api/p/${id}/status`).then((r) => r.json()).catch(() => null);
+    if (s && (s.sheetStatus !== status || s.looksStatus !== looksStatus)) return location.reload();
+    if (s) {
+      for (const frame of frames()) {
+        const img = s.lookImages[Number(frame.dataset.n) - 1];
+        if (img && (img.status !== frame.dataset.status || (img.v ?? '') !== frame.dataset.v)) paint(frame, img);
+      }
+      const zip = document.getElementById('lookZip');
+      if (zip) zip.hidden = !s.lookImages.some((i) => i.status === 'ready');
+    }
+    if (busy()) setTimeout(poll, 3000);
+  };
+  if (busy()) setTimeout(poll, 3000);
 </script>
 
 <style>
@@ -126,10 +189,13 @@ const v = profile.attempt;
   .lhead { display: flex; flex-direction: column; gap: 6px; margin-bottom: 20px; }
   .lhead h2 { font-size: var(--text-lg); }
   .lgrid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--gap); }
-  .lcard { background: var(--surface); padding: 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-  .lcard.waiting { min-height: 220px; background: var(--chip); }
-  .strip { display: flex; height: 56px; margin: -14px -14px 4px; background: var(--line); }
-  .strip span { flex: 1; }
+  .lcard { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .lframe { background: var(--surface); aspect-ratio: 3 / 4; display: flex; flex-direction: column; gap: 12px; align-items: center; justify-content: center; overflow: hidden; }
+  .lframe :global(img) { width: 100%; height: 100%; object-fit: cover; }
+  .lframe :global(.pulse) { animation: pulse 1.6s ease-in-out infinite; }
+  .lframe.waiting { background: var(--chip); padding: 16px; text-align: center; }
+  .lmeta { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-top: 4px; }
+  .lmeta .dl { margin-left: 0; }
   .lname { text-transform: uppercase; letter-spacing: var(--track-label); font-size: var(--text-sm); font-weight: 500; }
   .pieces { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: var(--text-xs); }
   .pieces li { display: flex; align-items: center; gap: 6px; }
@@ -139,4 +205,5 @@ const v = profile.attempt;
   .lfail { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
   @media (max-width: 1100px) { .lgrid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
   @media (max-width: 760px) { .lgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (prefers-reduced-motion: reduce) { .lframe :global(.pulse) { animation: none; } }
 </style>

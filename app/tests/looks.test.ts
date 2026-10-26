@@ -11,7 +11,7 @@ import { runLooksJob } from '../src/lib/jobs';
 import { LooksSchema, looksPrompt } from '../src/lib/looks';
 import { DEMO_LOOKS } from '../src/lib/ai/demo-looks';
 import { POST as answersRoute } from '../src/pages/api/p/[id]/answers';
-import { POST as looksRoute } from '../src/pages/api/p/[id]/looks';
+import { POST as looksRoute } from '../src/pages/api/p/[id]/looks/index';
 import { GET as statusRoute } from '../src/pages/api/p/[id]/status';
 
 const FIRST_THREE = { section: 'mens', height: '6ft', topSize: 'M', bottomSize: '32', shape: ['pear'], goals: ['comfort'], skinTone: 5, veins: 'green', metal: 'gold', hair: 'black', eyes: 'brown', styles: ['minimal', 'workwear'], avoid: ['none'] } as const;

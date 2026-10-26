@@ -11,7 +11,7 @@ export function imageExt(buf: Buffer): 'png' | 'jpg' {
   return buf[0] === 0x89 && buf[1] === 0x50 ? 'png' : 'jpg';
 }
 
-export async function saveImage(id: string, kind: 'photo' | 'sheet' | 'tryon', buf: Buffer): Promise<string> {
+export async function saveImage(id: string, kind: 'photo' | 'sheet' | 'tryon' | 'look', buf: Buffer): Promise<string> {
   const dir = profileDir(id);
   await mkdir(dir, { recursive: true });
   const path = join(dir, `${kind}-${Date.now()}.${imageExt(buf)}`);
