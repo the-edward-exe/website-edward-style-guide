@@ -1,8 +1,12 @@
 import type { APIRoute } from 'astro';
 import { getProfile, saveAnswers, renameProfile, beginLooks } from '../../../../lib/profiles';
 import { startLooksJob } from '../../../../lib/jobs';
-import { parseStep, nextPath } from '../../../../lib/questionnaire';
+import { parseStep, nextPath, stepFields } from '../../../../lib/questionnaire';
+import { stopGeneration } from '../../../../lib/stop';
 import { seeOther, readForm, wantsJson } from '../../../../lib/http';
+
+// Compares answers so order, an empty list and no answer don't count as a change.
+const same = (v: unknown) => JSON.stringify(Array.isArray(v) ? (v.length ? [...v].sort() : null) : v ?? null);
 
 export const POST: APIRoute = async ({ params, url, request }) => {
   const profile = await getProfile(params.id!);
@@ -19,6 +23,13 @@ export const POST: APIRoute = async ({ params, url, request }) => {
     else missing.unshift('name' as never);
   }
   if (Object.keys(valid).length) await saveAnswers(profile.id, valid);
+  // Your taste changed after the looks were written: replace them with new looks and pictures.
+  const tasteChanged = step === 3 && !missing.length && profile.looksStatus !== 'none'
+    && stepFields(3).some((k) => same(profile.answers[k]) !== same(valid[k]));
+  if (tasteChanged) {
+    await stopGeneration(profile.id, 'looks');
+    startLooksJob(profile.id, await beginLooks(profile.id));
+  }
   // After the last step, go to the first unanswered step if any, else on to the sheet.
   const next = step === 4 ? nextPath((await getProfile(profile.id))!) : `/p/${profile.id}/q/${step + 1}`;
   // Headed for the sheet: start the ten looks now so they're ready while the sheet builds.

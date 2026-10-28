@@ -119,3 +119,49 @@ describe('starting the looks', () => {
     expect(out.looksStatus).toBe('pending');
   });
 });
+
+describe('changing your taste later', () => {
+  const step3 = (id: string, pairs: [string, string][]) => {
+    const url = `/api/p/${id}/answers?step=3`;
+    const request = new Request(`http://localhost${url}`, { method: 'POST', body: new URLSearchParams(pairs), headers: { Accept: 'application/json' } });
+    return answersRoute({ params: { id }, url: new URL(`http://localhost${url}`), request } as any);
+  };
+  const TASTE: [string, string][] = [['styles', 'minimal'], ['styles', 'workwear'], ['avoid', 'none']];
+
+  it('new taste answers write new looks', async () => {
+    const id = await photoProfile();
+    await saveAnswers(id, FIRST_THREE as any);
+    await finishLooks(id, await beginLooks(id), { looks: DEMO_LOOKS });
+    vi.mocked(generateLooks).mockReturnValue(new Promise(() => {}));
+    const out = await (await step3(id, [['styles', 'classic'], ['avoid', 'none']])).json();
+    expect(out.ok).toBe(true);
+    const p = await getProfile(id);
+    expect(p?.looksStatus).toBe('pending');
+    expect(p?.looksAttempt).toBe(2);
+    expect(p?.answers.styles).toEqual(['classic']);
+  });
+
+  it('saving the same taste changes nothing', async () => {
+    const id = await photoProfile();
+    await saveAnswers(id, FIRST_THREE as any);
+    await finishLooks(id, await beginLooks(id), { looks: DEMO_LOOKS });
+    await step3(id, TASTE);
+    expect((await getProfile(id))?.looksAttempt).toBe(1);
+  });
+
+  it('works after the sheet is approved', async () => {
+    const id = await photoProfile();
+    await saveAnswers(id, FIRST_THREE as any);
+    await approveSheet(id);
+    await finishLooks(id, await beginLooks(id), { looks: DEMO_LOOKS });
+    vi.mocked(generateLooks).mockReturnValue(new Promise(() => {}));
+    await step3(id, [['styles', 'classic'], ['avoid', 'none']]);
+    expect((await getProfile(id))?.looksStatus).toBe('pending');
+  });
+
+  it('during the first questionnaire, step 3 does not write looks', async () => {
+    const id = await photoProfile();
+    await step3(id, TASTE);
+    expect((await getProfile(id))?.looksStatus).toBe('none');
+  });
+});

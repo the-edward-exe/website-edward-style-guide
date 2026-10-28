@@ -1,6 +1,7 @@
 ---
 import Base from '../../../layouts/Base.astro';
 import Button from '../../../components/Button.astro';
+import QuizDialog from '../../../components/QuizDialog.astro';
 import { getProfile, beginLooks } from '../../../lib/profiles';
 import { nextPath } from '../../../lib/questionnaire';
 import { startLooksJob, startLookImages } from '../../../lib/jobs';
@@ -88,10 +89,14 @@ const v = profile.attempt;
             <a class="dl" id="lookZip" href={`/api/p/${profile.id}/looks/zip`} hidden={!lookImages.some((i) => i.status === 'ready')}>Download all</a>
           </p>
         )}
-        <form method="post" action={`/api/p/${profile.id}/stop`} id="lookStop" hidden={!looksBusy}>
-          <input type="hidden" name="what" value="looks" />
-          <Button>Stop</Button>
-        </form>
+        <div class="lactions">
+          <button type="button" class="taste" data-edit-step="3">Change your taste</button>
+          <form method="post" action={`/api/p/${profile.id}/stop`} id="lookStop" hidden={!looksBusy}>
+            <input type="hidden" name="what" value="looks" />
+            <Button>Stop</Button>
+          </form>
+        </div>
+        <p class="label">Pick different looks, colors or things to avoid. Your 10 looks and their pictures are made again.</p>
       </div>
       {looksStatus === 'pending' && (
         <div class="lgrid">
@@ -138,6 +143,7 @@ const v = profile.attempt;
       )}
     </section>
   )}
+  {looksStatus !== 'none' && <QuizDialog mode="edit" profileId={profile.id} name={profile.name} answers={profile.answers} startStep={3} />}
 </Base>
 
 <script define:vars={{ id: profile.id, status, looksStatus }}>
@@ -204,7 +210,12 @@ const v = profile.attempt;
   .looks { margin-top: 48px; padding-top: 28px; border-top: 1px solid var(--line); }
   .lhead { display: flex; flex-direction: column; gap: 6px; margin-bottom: 20px; }
   .lhead h2 { font-size: var(--text-lg); }
-  .lhead form { align-self: flex-start; margin-top: 6px; }
+  .lactions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
+  .taste {
+    font: 500 var(--text-xs)/1 var(--font); text-transform: uppercase; letter-spacing: var(--track-label);
+    padding: 13px 22px; border: 0; background: var(--accent); color: var(--accent-ink); cursor: pointer;
+  }
+  .taste:hover { background: #774c32; }
   .lgrid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--gap); }
   .lcard { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
   .lframe { background: var(--surface); aspect-ratio: 3 / 4; display: flex; flex-direction: column; gap: 12px; align-items: center; justify-content: center; overflow: hidden; }
