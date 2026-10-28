@@ -1,11 +1,13 @@
 ---
 import Base from '../../../layouts/Base.astro';
 import Button from '../../../components/Button.astro';
+import QuizDialog from '../../../components/QuizDialog.astro';
 import { getProfile, beginLooks } from '../../../lib/profiles';
 import { nextPath } from '../../../lib/questionnaire';
 import { startLooksJob, startLookImages } from '../../../lib/jobs';
 import { listLookImages } from '../../../lib/look-images';
 import { aiMode } from '../../../lib/ai/mode';
+import { STOPPED } from '../../../lib/stop';
 
 let profile = await getProfile(Astro.params.id!);
 if (!profile) return Astro.rewrite('/404');
@@ -23,6 +25,9 @@ startLookImages(profile.id);
 const { looks, looksStatus, looksError } = profile;
 const lookImages = await listLookImages(profile);
 const version = (path: string | null | undefined) => path?.match(/look-(\d+)/)?.[1] ?? '';
+// Writing the looks, or pictures still to come (a look with no row yet is about to be claimed).
+const looksBusy = looksStatus === 'pending' || (looksStatus === 'ready' && profile.sheetStatus === 'ready'
+  && (lookImages.length < (looks?.looks.length ?? 0) || lookImages.some((i) => i.status === 'pending')));
 
 const { sheetStatus: status, sheetError } = profile;
 const demo = aiMode().gemini === 'demo';
@@ -31,7 +36,7 @@ const v = profile.attempt;
 <Base title="Character sheet">
   <div class="head">
     <span class="label">Character sheet · {profile.name}</span>
-    <h1>{status === 'ready' ? 'Is this you?' : status === 'failed' ? 'The sheet didn’t work' : 'Building your character sheet'}</h1>
+    <h1>{status === 'ready' ? 'Is this you?' : status === 'failed' ? (sheetError === STOPPED ? 'Sheet stopped' : 'The sheet didn’t work') : 'Building your character sheet'}</h1>
     <p class="label">Every outfit you try on uses this sheet. Check the face, hair and build.</p>
     {demo && <p class="note-warn">Demo mode: add GEMINI_API_KEY to .env for real sheets</p>}
   </div>
@@ -58,12 +63,17 @@ const v = profile.attempt;
         <Button variant="primary">This is me</Button>
       </form>
     )}
+    {status === 'pending' && (
+      <form method="post" action={`/api/p/${profile.id}/stop`}>
+        <input type="hidden" name="what" value="sheet" />
+        <Button>Stop</Button>
+      </form>
+    )}
     {status !== 'pending' && (
       <form method="post" action={`/api/p/${profile.id}/sheet/retry`}>
         <Button>Try again</Button>
       </form>
     )}
-    {status === 'ready' && <a class="label dl" href={`/api/p/${profile.id}/image/sheet?download=1`}>Download</a>}
     <a class="label dl" href={`/p/${profile.id}/photo`}>Use a different photo</a>
   </div>
 
@@ -78,6 +88,14 @@ const v = profile.attempt;
             <a class="dl" id="lookZip" href={`/api/p/${profile.id}/looks/zip`} hidden={!lookImages.some((i) => i.status === 'ready')}>Download all</a>
           </p>
         )}
+        <div class="lactions">
+          <button type="button" class="taste" data-edit-step="3">Change your taste</button>
+          <form method="post" action={`/api/p/${profile.id}/stop`} id="lookStop" hidden={!looksBusy}>
+            <input type="hidden" name="what" value="looks" />
+            <Button>Stop</Button>
+          </form>
+        </div>
+        <p class="label">Pick different looks, colors or things to avoid. Your 10 looks and their pictures are made again.</p>
       </div>
       {looksStatus === 'pending' && (
         <div class="lgrid">
@@ -124,6 +142,7 @@ const v = profile.attempt;
       )}
     </section>
   )}
+  {looksStatus !== 'none' && <QuizDialog mode="edit" profileId={profile.id} name={profile.name} answers={profile.answers} startStep={3} />}
 </Base>
 
 <script define:vars={{ id: profile.id, status, looksStatus }}>
@@ -164,6 +183,8 @@ const v = profile.attempt;
       }
       const zip = document.getElementById('lookZip');
       if (zip) zip.hidden = !s.lookImages.some((i) => i.status === 'ready');
+      const stop = document.getElementById('lookStop');
+      if (stop && looksStatus === 'ready') stop.hidden = !frames().some((f) => f.dataset.status === 'pending');
     }
     if (busy()) setTimeout(poll, 3000);
   };
@@ -188,6 +209,12 @@ const v = profile.attempt;
   .looks { margin-top: 48px; padding-top: 28px; border-top: 1px solid var(--line); }
   .lhead { display: flex; flex-direction: column; gap: 6px; margin-bottom: 20px; }
   .lhead h2 { font-size: var(--text-lg); }
+  .lactions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
+  .taste {
+    font: 500 var(--text-xs)/1 var(--font); text-transform: uppercase; letter-spacing: var(--track-label);
+    padding: 13px 22px; border: 0; background: var(--accent); color: var(--accent-ink); cursor: pointer;
+  }
+  .taste:hover { background: #774c32; }
   .lgrid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--gap); }
   .lcard { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
   .lframe { background: var(--surface); aspect-ratio: 3 / 4; display: flex; flex-direction: column; gap: 12px; align-items: center; justify-content: center; overflow: hidden; }

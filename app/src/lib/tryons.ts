@@ -58,7 +58,7 @@ export async function listTryons(profileId: string, guideAttempt?: number): Prom
 
 export async function finishTryon(id: string, r: { path: string } | { error: string }): Promise<boolean> {
   const rows = 'path' in r
-    ? await sql`update tryons set status = 'ready', path = ${r.path}, error = null where id = ${id} returning id`
-    : await sql`update tryons set status = 'failed', error = ${r.error} where id = ${id} returning id`;
+    ? await sql`update tryons set status = 'ready', path = ${r.path}, error = null where id = ${id} and status = 'pending' returning id`
+    : await sql`update tryons set status = 'failed', error = ${r.error} where id = ${id} and status = 'pending' returning id`;
   return rows.length > 0;
 }

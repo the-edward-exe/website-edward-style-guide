@@ -64,7 +64,7 @@ About them:
 - Height ${t('height')}, shirt size ${t('topSize')}, pant size ${t('bottomSize')}
 - Body shape closest to: ${t('shape')}
 - Wants clothes to: ${t('goals')}
-- Skin tone: swatch ${a.skinTone ?? '?'} of 7${skin ? ` (${skin.hex})` : ''}; wrist veins look ${t('veins')}; ${t('metal')} jewelry suits them
+- Skin tone: swatch ${a.skinTone ?? '?'} of 7${skin ? ` (${skin.hex})` : ''}; ${t('metal')} jewelry suits them
 - Hair: ${t('hair')}; eyes: ${t('eyes')}
 - Looks they like: ${t('styles')}
 - Colors they love: ${t('loveColors')}; colors they never wear: ${t('avoidColors')}
