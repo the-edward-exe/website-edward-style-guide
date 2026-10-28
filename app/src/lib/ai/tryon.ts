@@ -1,4 +1,4 @@
-import { aiMode } from './mode';
+import { aiMode, demoDelay } from './mode';
 import { geminiImage } from './gemini';
 import { demoTryon } from './demo-sheet';
 import type { Outfit } from '../guide';
@@ -23,10 +23,10 @@ Create one photorealistic full-body photograph of this person standing in a rela
 Setting: ${outfit.setting}. Soft natural light, shallow depth of field, editorial lookbook style. No text, no logos, no watermark. One single image, not a collage.`;
 }
 
-export async function generateTryon(sheet: Buffer, prompt: string): Promise<Buffer> {
+export async function generateTryon(sheet: Buffer, prompt: string, signal?: AbortSignal): Promise<Buffer> {
   if (aiMode().gemini === 'demo') {
-    await new Promise((r) => setTimeout(r, Number(process.env.DEMO_DELAY_MS ?? 3000)));
+    await demoDelay(signal);
     return demoTryon();
   }
-  return geminiImage(prompt, sheet, 'NO IMAGE CAME BACK. TRY AGAIN OR EDIT THE PROMPT.');
+  return geminiImage(prompt, sheet, 'NO IMAGE CAME BACK. TRY AGAIN OR EDIT THE PROMPT.', signal);
 }

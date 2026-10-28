@@ -1,13 +1,13 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
-import { aiMode } from './mode';
+import { aiMode, demoDelay } from './mode';
 import { DEMO_LOOKS } from './demo-looks';
 import { LooksSchema, looksPrompt, type Looks } from '../looks';
 import type { Profile } from '../profiles';
 
-export async function generateLooks(p: Profile, photo: Buffer): Promise<Looks> {
+export async function generateLooks(p: Profile, photo: Buffer, signal?: AbortSignal): Promise<Looks> {
   if (aiMode().claude === 'demo') {
-    await new Promise((r) => setTimeout(r, Number(process.env.DEMO_DELAY_MS ?? 3000)));
+    await demoDelay(signal);
     return DEMO_LOOKS;
   }
   const client = new Anthropic();
@@ -22,7 +22,7 @@ export async function generateLooks(p: Profile, photo: Buffer): Promise<Looks> {
       ],
     }],
     output_config: { effort: 'low', format: zodOutputFormat(LooksSchema) },
-  });
+  }, { signal });
   if (res.stop_reason === 'refusal' || !res.parsed_output) throw new Error("THE LOOKS DIDN'T COME BACK. TRY AGAIN.");
   return res.parsed_output;
 }

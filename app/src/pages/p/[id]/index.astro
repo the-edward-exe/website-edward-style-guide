@@ -49,7 +49,12 @@ const prompts = g ? Object.fromEntries(g.outfits.map((o) => [o.id, tryonPrompt(p
           <form method="post" action={`/api/p/${profile.id}/guide/regenerate`}><Button variant="primary">Rewrite my guide</Button></form>
         </details>
       )}
-      {profile.guideStatus === 'pending' && <p class="label pulse" id="guidePending">Writing your guide. This takes about a minute.</p>}
+      {profile.guideStatus === 'pending' && (
+        <div class="failed">
+          <p class="label pulse" id="guidePending">Writing your guide. This takes about a minute.</p>
+          <form method="post" action={`/api/p/${profile.id}/stop`}><input type="hidden" name="what" value="guide" /><Button>Stop</Button></form>
+        </div>
+      )}
       {profile.guideStatus === 'failed' && (
         <div class="failed">
           <p class="error">{profile.guideError}</p>
@@ -171,6 +176,7 @@ const prompts = g ? Object.fromEntries(g.outfits.map((o) => [o.id, tryonPrompt(p
           <div class="thumbs" id="oThumbs"></div>
           <div class="oactions">
             <button class="btn primary" type="button" id="oTry">Try it on</button>
+            <button class="btn plain" type="button" id="oStop" hidden>Stop</button>
             <a class="label link" id="oDownload" hidden>Download</a>
           </div>
           <p class="status label" id="oStatus"></p>
@@ -265,6 +271,7 @@ const prompts = g ? Object.fromEntries(g.outfits.map((o) => [o.id, tryonPrompt(p
 
     const pending = vs.some((v) => v.status === 'pending');
     ($('oTry') as HTMLButtonElement).disabled = pending;
+    $('oStop').hidden = !pending;
     $('oTry').textContent = vs.length ? 'Try another' : 'Try it on';
     const failed = shown?.status === 'failed' ? shown.error : '';
     $('oStatus').textContent = pending ? 'Generating. You can close this and come back.' : failed ?? '';
@@ -337,6 +344,17 @@ const prompts = g ? Object.fromEntries(g.outfits.map((o) => [o.id, tryonPrompt(p
     shown = out.tryon;
     paint();
     poll();
+  });
+  document.getElementById('oStop')?.addEventListener('click', async () => {
+    ($('oStop') as HTMLButtonElement).disabled = true;
+    for (const t of versions(current.id).filter((v) => v.status === 'pending')) {
+      await fetch(`/api/p/${id}/stop`, { method: 'POST', headers: { Accept: 'application/json' }, body: new URLSearchParams({ what: 'tryon', tryon: t.id }) }).catch(() => null);
+    }
+    const out = await fetch(`/api/p/${id}/tryons`).then((r) => r.json()).catch(() => null);
+    if (out) tryons = out.tryons;
+    ($('oStop') as HTMLButtonElement).disabled = false;
+    paint();
+    refreshCards();
   });
   document.getElementById('oReset')?.addEventListener('click', () => { ($('oPrompt') as HTMLTextAreaElement).value = prompts[current.id] ?? ''; });
   document.getElementById('oClose')?.addEventListener('click', () => dialog!.close());
@@ -425,6 +443,8 @@ const prompts = g ? Object.fromEntries(g.outfits.map((o) => [o.id, tryonPrompt(p
   .btn { font: 500 var(--text-xs)/1 var(--font); text-transform: uppercase; letter-spacing: var(--track-label); padding: 13px 22px; border: 0; cursor: pointer; }
   .btn.primary { background: var(--accent); color: var(--accent-ink); }
   .btn.primary:hover { background: #774c32; }
+  .btn.plain { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+  .btn.plain:hover { background: var(--ink); color: var(--bg); }
   .btn:disabled { opacity: 0.5; cursor: default; }
   .status { min-height: 1em; }
   .prompt textarea { width: 100%; margin-top: 8px; font-size: var(--text-xs); line-height: 1.5; resize: vertical; }

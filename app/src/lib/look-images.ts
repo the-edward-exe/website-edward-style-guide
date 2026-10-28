@@ -59,10 +59,16 @@ export async function retryLookImage(p: Profile, idx: number): Promise<boolean> 
 export async function finishLookImage(k: LookImageKey, idx: number, r: { path: string } | { error: string }): Promise<boolean> {
   const rows = 'path' in r
     ? await sql`update look_images set status = 'ready', path = ${r.path}, error = null
-        where profile_id = ${k.id} and looks_attempt = ${k.looksAttempt} and sheet_attempt = ${k.sheetAttempt} and idx = ${idx}
+        where profile_id = ${k.id} and looks_attempt = ${k.looksAttempt} and sheet_attempt = ${k.sheetAttempt} and idx = ${idx} and status = 'pending'
         returning idx`
     : await sql`update look_images set status = 'failed', error = ${r.error}
-        where profile_id = ${k.id} and looks_attempt = ${k.looksAttempt} and sheet_attempt = ${k.sheetAttempt} and idx = ${idx}
+        where profile_id = ${k.id} and looks_attempt = ${k.looksAttempt} and sheet_attempt = ${k.sheetAttempt} and idx = ${idx} and status = 'pending'
         returning idx`;
   return rows.length > 0;
+}
+
+export async function lookImageStatus(k: LookImageKey, idx: number): Promise<JobStatus | null> {
+  const [r] = await sql`select status from look_images
+    where profile_id = ${k.id} and looks_attempt = ${k.looksAttempt} and sheet_attempt = ${k.sheetAttempt} and idx = ${idx}`;
+  return r?.status ?? null;
 }
