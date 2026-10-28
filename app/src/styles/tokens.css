@@ -1,0 +1,29 @@
+/* Vestry tokens. Colors are the current guide's light palette (spec: Look and feel).
+   Type and shape follow the Fear of God Essentials reference: one condensed sans, no radius, no shadow. */
+:root {
+  --bg: #E6E4DF;
+  --surface: #F3F2EE;
+  --ink: #1D2938;
+  --muted: #5D636A;
+  --line: #CBC7BF;
+  --chip: #DAD7D0;
+  --accent: #8A5A3C;
+  --accent-ink: #FFFFFF;
+  --navy: #24364F;
+  --ok: #3F6B4A;
+  --warn: #9A5B12;
+  --bad: #9B2F2F;
+
+  --font: "Archivo Narrow", "Helvetica Neue Condensed", "Arial Narrow", Arial, sans-serif;
+  --track: 0.02em;
+  --track-label: 0.1em;
+  --radius: 0;
+
+  --text-xs: 0.6875rem;
+  --text-sm: 0.8125rem;
+  --text-md: 0.9375rem;
+  --text-lg: clamp(1.125rem, 1rem + 0.5vw, 1.375rem);
+
+  --gutter: max(16px, 2.4vw);
+  --gap: 16px;
+}

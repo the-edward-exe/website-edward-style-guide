@@ -1,0 +1,9 @@
+---
+import Base from '../layouts/Base.astro';
+Astro.response.status = 404;
+---
+<Base title="Not found">
+  <span class="label">404</span>
+  <h1>This profile doesn't exist</h1>
+  <p class="muted" style="margin-top:12px">It may have been deleted. <a href="/">Back to profiles</a></p>
+</Base>

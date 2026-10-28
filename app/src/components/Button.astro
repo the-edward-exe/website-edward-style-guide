@@ -1,0 +1,21 @@
+---
+interface Props { variant?: 'primary' | 'plain'; type?: 'submit' | 'button'; href?: string; name?: string; value?: string }
+const { variant = 'plain', type = 'submit', href, name, value } = Astro.props;
+---
+{href
+  ? <a class:list={['btn', variant]} href={href}><slot /></a>
+  : <button class:list={['btn', variant]} type={type} name={name} value={value}><slot /></button>}
+
+<style>
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    font: 500 var(--text-xs)/1 var(--font); text-transform: uppercase; letter-spacing: var(--track-label);
+    padding: 13px 22px; border: 1px solid transparent; border-radius: var(--radius);
+    cursor: pointer; text-decoration: none; white-space: nowrap;
+  }
+  .primary { background: var(--accent); color: var(--accent-ink); }
+  .primary:hover { background: #774c32; }
+  .plain { background: transparent; color: var(--ink); border-color: var(--ink); }
+  .plain:hover { background: var(--ink); color: var(--bg); }
+  .btn:disabled { opacity: 0.5; cursor: default; }
+</style>

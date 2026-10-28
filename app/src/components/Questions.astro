@@ -1,0 +1,154 @@
+---
+// The questions for one questionnaire step. Used by the step pages and the home-page pop-up.
+import ShapeIcon from './ShapeIcon.astro';
+import { SKIN_SWATCHES, COLOR_SWATCHES, type Answers, type Field, type Step } from '../lib/questionnaire';
+
+interface Props { step: Step; answers?: Partial<Answers>; missing?: Set<string> }
+const { step, answers: a = {}, missing = new Set<string>() } = Astro.props;
+
+const has = (f: Field, v: string) => {
+  const cur = a[f.key];
+  return Array.isArray(cur) ? (cur as string[]).includes(v) : String(cur ?? '') === v;
+};
+const inputType = (f: Field) => (f.kind === 'single' || f.kind === 'skin' || (f.kind === 'shape' && !f.max) ? 'radio' : 'checkbox');
+const MAXLEN: Record<string, number> = { height: 20, topSize: 20, bottomSize: 20, hair: 30, eyes: 30, location: 60 };
+---
+{step.questions.map((q) => (
+  <fieldset class:list={['q', { bad: q.fields.some((f) => missing.has(f.key)) }]} data-keys={q.fields.map((f) => f.key).join(',')}>
+    <legend>
+      <span class="num">{String(q.n).padStart(2, '0')}</span>
+      <span class="title">{q.title}</span>
+      {q.hint && <span class="label">{q.hint}</span>}
+    </legend>
+
+    {q.fields.map((f) => (
+      <div class="field" data-key={f.key} data-max={f.max}>
+        {f.label && f.kind !== 'text' && <span class="label">{f.label}</span>}
+
+        {f.kind === 'text' && (
+          <label class="text">
+            <span class="label">{f.label}</span>
+            <input class="input" name={f.key} value={String(a[f.key] ?? '')} placeholder={f.placeholder} maxlength={MAXLEN[f.key] ?? 60} />
+          </label>
+        )}
+
+        {(f.kind === 'single' || f.kind === 'multi') && (
+          <div class="chips">
+            {f.options!.map((o) => (
+              <label class="chip">
+                <input type={inputType(f)} name={f.key} value={o.value} checked={has(f, o.value)} />
+                <span>{o.label}</span>
+              </label>
+            ))}
+          </div>
+        )}
+
+        {f.kind === 'shape' && (
+          <div class="shapes">
+            {f.options!.map((o) => (
+              <label class="shapecard">
+                <input type={inputType(f)} name={f.key} value={o.value} checked={has(f, o.value)} />
+                <ShapeIcon shape={o.value} />
+                <span class="label">{o.label}</span>
+              </label>
+            ))}
+          </div>
+        )}
+
+        {f.kind === 'skin' && (
+          <div class="swatches">
+            {SKIN_SWATCHES.map((s) => (
+              <label class="swatch" title={`Tone ${s.tone}`}>
+                <input type="radio" name={f.key} value={s.tone} checked={has(f, String(s.tone))} />
+                <span style={`background:${s.hex}`} />
+              </label>
+            ))}
+          </div>
+        )}
+
+        {f.kind === 'colors' && (
+          <div class="swatches small">
+            {COLOR_SWATCHES.map(([name, hex]) => (
+              <label class="swatch" title={name}>
+                <input type="checkbox" name={f.key} value={name} checked={has(f, name)} />
+                <span style={`background:${hex}`} />
+                <em class="label">{name}</em>
+              </label>
+            ))}
+          </div>
+        )}
+
+        {f.kind === 'tiles' && (
+          <div class="tiles">
+            {f.options!.map((o) => (
+              <label class="tile">
+                <input type="checkbox" name={f.key} value={o.value} checked={has(f, o.value)} />
+                <span class="tname">{o.label}</span>
+                <span class="label">{o.hint}</span>
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
+    ))}
+  </fieldset>
+))}
+
+<script>
+  // Cap multi-selects at their max (goals: 2, styles: 3), and make "None" exclusive in the avoid list.
+  document.addEventListener('change', (e) => {
+    const input = e.target as HTMLInputElement;
+    const field = input.closest<HTMLElement>('.field');
+    if (!field || input.type !== 'checkbox') return;
+    const max = Number(field.dataset.max);
+    const boxes = [...field.querySelectorAll<HTMLInputElement>('input[type=checkbox]')];
+    if (max && boxes.filter((b) => b.checked).length > max) input.checked = false;
+    if (field.dataset.key === 'avoid' && input.checked) {
+      boxes.forEach((b) => { if (input.value === 'none' ? b.value !== 'none' : b.value === 'none') b.checked = false; });
+    }
+  });
+</script>
+
+<style is:global>
+  .q { border: 0; border-top: 1px solid var(--line); margin: 0; padding: 22px 0 26px; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+  .q.bad legend .title { color: var(--bad); }
+  .q:has(.text) { flex-direction: row; flex-wrap: wrap; gap: 12px; }
+  .q:has(.text) .field { flex: 1 1 160px; }
+  .q legend { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; padding: 0; margin-bottom: 14px; }
+  .q .num { font-size: var(--text-xs); color: var(--muted); letter-spacing: var(--track-label); }
+  .q .title { font-size: var(--text-md); font-weight: 500; text-transform: uppercase; letter-spacing: var(--track-label); }
+  .q .field { display: flex; flex-direction: column; gap: 8px; }
+  .q .text { display: flex; flex-direction: column; gap: 6px; }
+
+  .q input[type=radio], .q input[type=checkbox] { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .q .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .q .chip span {
+    display: inline-block; padding: 9px 14px; background: var(--chip); cursor: pointer;
+    font-size: var(--text-xs); text-transform: uppercase; letter-spacing: var(--track-label);
+  }
+  .q .chip input:checked + span { background: var(--ink); color: var(--bg); }
+  .q .chip input:focus-visible + span, .q .swatch input:focus-visible + span, .q .tile:focus-within, .q .shapecard:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .q .shapes { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+  .q .shapecard { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 14px 8px; background: var(--surface); cursor: pointer; color: var(--muted); text-align: center; }
+  .q .shapecard:has(input:checked) { background: var(--ink); color: var(--bg); }
+  .q .shapecard:has(input:checked) .label { color: var(--bg); }
+
+  .q .swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+  .q .swatch { position: relative; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .q .swatch span { display: block; width: 44px; height: 58px; border: 1px solid var(--line); }
+  .q .swatch input:checked + span { outline: 2px solid var(--ink); outline-offset: 3px; }
+  .q .swatches.small .swatch span { width: 34px; height: 34px; }
+  .q .swatch em { font-style: normal; font-size: 0.6rem; }
+
+  .q .tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+  .q .tile { aspect-ratio: 3 / 4; background: var(--chip); padding: 14px; display: flex; flex-direction: column; justify-content: flex-end; gap: 4px; cursor: pointer; }
+  .q .tile .tname { text-transform: uppercase; letter-spacing: var(--track-label); font-size: var(--text-sm); font-weight: 500; }
+  .q .tile:has(input:checked) { background: var(--ink); color: var(--bg); }
+  .q .tile:has(input:checked) .label { color: var(--chip); }
+
+  @media (max-width: 760px) {
+    .q .shapes { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .q .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+</style>

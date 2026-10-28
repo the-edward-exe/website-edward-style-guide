@@ -1,0 +1,171 @@
+---
+// The personal style questionnaire. Every question is answered here, in a centered pop-up:
+//   new    - opened by Get Started on the home page once the photo is dropped
+//   resume - opened on load at the first unanswered step
+//   edit   - opened from the guide's Edit links, one step at a time, then saved
+import Button from './Button.astro';
+import Questions from './Questions.astro';
+import { STEPS, type Answers } from '../lib/questionnaire';
+import { NEW_PROFILE_NAME } from '../lib/profiles';
+
+interface Props {
+  mode: 'new' | 'resume' | 'edit';
+  profileId?: string;
+  answers?: Partial<Answers>;
+  startStep?: number;
+  autoOpen?: boolean;
+  name?: string;
+}
+const { mode, profileId = '', answers = {}, startStep = 1, autoOpen = mode === 'resume', name = '' } = Astro.props;
+const firstName = name === NEW_PROFILE_NAME ? '' : name;
+---
+<dialog id="quiz" class="quiz" aria-labelledby="quizTitle" data-mode={mode} data-profile={profileId} data-start={startStep} data-auto={autoOpen ? '1' : undefined}>
+  <div class="qhead">
+    <div>
+      <span class="label" id="quizStep">Step 1 of 4</span>
+      <h2 id="quizTitle" tabindex="-1" autofocus>{STEPS[0].title}</h2>
+    </div>
+    <button class="close label" type="button" id="quizClose">{mode === 'edit' ? 'Cancel' : 'Finish later'}</button>
+  </div>
+  <div class="progress" aria-hidden="true">{STEPS.map((s) => <span data-n={s.n} />)}</div>
+  <p class="label read" id="readNote"></p>
+  <p class="error" id="quizError"></p>
+
+  {STEPS.map((s) => (
+    <form class="qstep" data-step={s.n} data-title={s.title} hidden>
+      {s.n === 1 && (
+        <fieldset class="q" data-keys="name">
+          <legend><span class="num">00</span><span class="title">Your first name</span></legend>
+          <div class="field" data-key="name">
+            <label class="text"><span class="label">First name</span><input class="input" name="name" value={firstName} maxlength="40" autocomplete="given-name" /></label>
+          </div>
+        </fieldset>
+      )}
+      <Questions step={s} answers={answers} />
+      <div class="qactions">
+        {mode !== 'edit' && s.n > 1 ? <button class="back label" type="button" data-back>Back</button> : <span />}
+        <Button variant="primary">{mode === 'edit' ? 'Save' : s.n === 4 ? 'See my sheet' : 'Next'}</Button>
+      </div>
+    </form>
+  ))}
+</dialog>
+
+<script>
+  const quiz = document.getElementById('quiz') as HTMLDialogElement | null;
+  if (quiz) {
+    const $ = (id: string) => document.getElementById(id)!;
+    const forms = [...quiz.querySelectorAll<HTMLFormElement>('.qstep')];
+    const mode = quiz.dataset.mode as 'new' | 'resume' | 'edit';
+    let profileId = quiz.dataset.profile || '';
+
+    const showStep = (n: number) => {
+      forms.forEach((f) => (f.hidden = Number(f.dataset.step) !== n));
+      $('quizStep').textContent = mode === 'edit' ? 'Edit answers' : `Step ${n} of 4`;
+      $('quizTitle').textContent = forms.find((f) => Number(f.dataset.step) === n)!.dataset.title!;
+      quiz.querySelectorAll<HTMLElement>('.progress span').forEach((s) => s.classList.toggle('on', Number(s.dataset.n) <= n));
+      $('readNote').hidden = n !== 2;
+      $('quizError').textContent = '';
+      quiz.scrollTop = 0;
+    };
+
+    // Fill coloring from Claude's photo read, only where nothing is chosen yet.
+    const pollPhotoRead = async () => {
+      $('readNote').textContent = 'Reading your photo…';
+      while (true) {
+        const s = await fetch(`/api/p/${profileId}/status`).then((r) => r.json()).catch(() => null);
+        if (s && s.photoReadStatus !== 'pending') {
+          let filled = false;
+          const r = s.photoRead;
+          if (r) {
+            const tone = [...quiz.querySelectorAll<HTMLInputElement>('input[name=skinTone]')];
+            if (!tone.some((t) => t.checked)) tone.forEach((t) => { if (t.value === String(r.skinTone)) { t.checked = true; filled = true; } });
+            for (const k of ['hair', 'eyes']) {
+              const el = quiz.querySelector<HTMLInputElement>(`input[name=${k}]`);
+              if (el && !el.value) { el.value = r[k]; filled = true; }
+            }
+          }
+          $('readNote').textContent = filled ? 'From your photo. Change if wrong.' : '';
+          return;
+        }
+        await new Promise((res) => setTimeout(res, 2000));
+      }
+    };
+
+    const open = (id: string, step: number, readPhoto = false) => {
+      profileId = id;
+      showStep(step);
+      if (!quiz.open) quiz.showModal();
+      if (readPhoto) pollPhotoRead();
+    };
+
+    forms.forEach((form) => {
+      const n = Number(form.dataset.step);
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        form.querySelectorAll('.q').forEach((q) => q.classList.remove('bad'));
+        const res = await fetch(`/api/p/${profileId}/answers?step=${n}`, {
+          method: 'POST', body: new FormData(form), headers: { Accept: 'application/json' },
+        }).catch(() => null);
+        const out = res ? await res.json().catch(() => null) : null;
+        if (!out) { $('quizError').textContent = 'Could not save. Try again.'; return; }
+        if (!out.ok) {
+          $('quizError').textContent = 'Answer every question to continue.';
+          form.querySelectorAll<HTMLElement>('.q').forEach((q) => {
+            if (q.dataset.keys!.split(',').some((k) => out.missing.includes(k))) q.classList.add('bad');
+          });
+          return;
+        }
+        // A step left unanswered: go back to it here instead of leaving the pop-up.
+        const missingStep = String(out.next).match(/\/q\/(\d)$/);
+        if (mode === 'edit') location.reload();
+        else if (n === 4 && missingStep) showStep(Number(missingStep[1]));
+        else if (n === 4) location.href = out.next;
+        else showStep(n + 1);
+      });
+      form.querySelector('[data-back]')?.addEventListener('click', () => showStep(n - 1));
+    });
+
+    // Closing keeps every saved step. Resume returns to a clean home screen.
+    $('quizClose').addEventListener('click', () => {
+      quiz.close();
+      if (mode === 'new') location.reload();
+      if (mode === 'resume') location.href = '/';
+    });
+    quiz.addEventListener('cancel', (e) => { if (mode !== 'edit') e.preventDefault(); });
+
+    // The home page opens a new profile's questionnaire after the photo uploads.
+    document.addEventListener('quiz:open', (e) => {
+      const { id, step, readPhoto } = (e as CustomEvent).detail;
+      open(id, step ?? 1, readPhoto);
+    });
+    // The guide's Edit links open one step.
+    document.addEventListener('click', (e) => {
+      const b = (e.target as HTMLElement).closest<HTMLElement>('[data-edit-step]');
+      if (b) open(profileId, Number(b.dataset.editStep));
+    });
+    if (quiz.dataset.auto) open(profileId, Number(quiz.dataset.start) || 1);
+  }
+</script>
+
+<style>
+  .quiz {
+    width: min(760px, calc(100vw - 32px)); max-height: 88vh; padding: 28px 32px 24px;
+    border: 0; border-radius: var(--radius); background: var(--bg); color: var(--ink);
+    overflow-y: auto; margin: auto;
+  }
+  .quiz::backdrop { background: rgb(29 41 56 / 0.55); }
+  .qhead { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+  .qhead h2 { font-size: var(--text-lg); margin-top: 6px; outline: none; }
+  .close { background: none; border: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 4px; padding: 4px 0; font-family: var(--font); }
+  .close:hover { color: var(--ink); }
+  .progress { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin: 14px 0 6px; }
+  .progress span { height: 2px; background: var(--line); }
+  .progress span.on { background: var(--ink); }
+  .quiz[data-mode=edit] .progress { display: none; }
+  .read { color: var(--ok); min-height: 1em; margin: 6px 0; }
+  #quizError:empty { display: none; }
+  .qactions { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--line); padding-top: 18px; }
+  .back { background: none; border: 0; cursor: pointer; font-family: var(--font); }
+  .back:hover { color: var(--ink); text-decoration: underline; }
+  @media (max-width: 560px) { .quiz { padding: 20px 16px; max-height: 92vh; } }
+</style>

@@ -1,0 +1,170 @@
+---
+import Base from '../layouts/Base.astro';
+import QuizDialog from '../components/QuizDialog.astro';
+import { listProfiles, getProfile, type Profile } from '../lib/profiles';
+import { STEPS, stepComplete, prefillFromRead } from '../lib/questionnaire';
+
+const profiles = await listProfiles();
+
+// ?resume=<id> reopens that profile's questionnaire pop-up at its first unanswered step (or ?step=).
+const resume = await getProfile(Astro.url.searchParams.get('resume') ?? '');
+const resumeStep = Number(Astro.url.searchParams.get('step'))
+  || STEPS.find((s) => resume && !stepComplete(resume.answers, s.n))?.n || 1;
+const resumeAnswers = resume ? { ...prefillFromRead(resume.answers, resume.photoRead), ...resume.answers } : {};
+
+function stage(p: Profile): string {
+  if (!p.photoPath) return 'Photo needed';
+  if (p.sheetApproved) return 'Sheet approved';
+  if (p.sheetStatus === 'ready') return 'Sheet ready';
+  return 'In progress';
+}
+const date = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase();
+---
+<Base title="Profiles">
+  <section class="hero" id="start">
+    <div class="card">
+      <label class="pic drop" id="drop">
+        <img id="preview" alt="" hidden />
+        <span class="prompt" id="prompt">
+          <span class="label strong">Drop your photo here</span>
+          <span class="label">Front. Full body. Daylight.</span>
+          <span class="label">or click to browse</span>
+        </span>
+        <input id="file" type="file" accept="image/jpeg,image/png,image/webp" />
+      </label>
+      <span class="label" id="dropLabel">New profile</span>
+      <span class="error" id="dropError"></span>
+    </div>
+
+    <div class="intro">
+      <span class="label">Vestry · Personal style</span>
+      <h1>One photo. Twelve questions. Clothes that fit you.</h1>
+      <div class="instructions">
+        <p class="lead">Get your fit started today. Just drag and drop a photo, and we'll start your personalized Style Guide.</p>
+      </div>
+      <div><button type="button" class="start" id="getStarted">Get Started</button></div>
+    </div>
+  </section>
+
+  <div class="countbar">
+    <span>{profiles.length} {profiles.length === 1 ? 'Profile' : 'Profiles'}</span>
+    <span class="muted">Newest first</span>
+  </div>
+
+  {profiles.length === 0
+    ? <p class="muted empty">No profiles yet.</p>
+    : (
+      <div class="grid">
+        {profiles.map((p) => (
+          <a class="card" href={`/p/${p.id}`}>
+            <div class:list={['pic', { empty: !p.photoPath }]}>
+              {p.photoPath && <img src={`/api/p/${p.id}/image/photo?v=${p.attempt}`} alt={p.name} loading="lazy" />}
+            </div>
+            <span class="label">{stage(p)}</span>
+            <span class="name">{p.name}</span>
+            <span class="sub">{date(p.createdAt)}</span>
+          </a>
+        ))}
+      </div>
+    )}
+
+  {resume
+    ? <QuizDialog mode="resume" profileId={resume.id} answers={resumeAnswers} startStep={resumeStep} />
+    : <QuizDialog mode="new" />}
+</Base>
+
+<script>
+  const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+  const drop = $('drop');
+  const fileInput = $<HTMLInputElement>('file');
+  const preview = $<HTMLImageElement>('preview');
+  const dropError = $('dropError');
+
+  let profileId: string | null = null;
+  let busy = false;
+  let photoReady = false;
+
+  async function postJson(url: string, body: FormData) {
+    const res = await fetch(url, { method: 'POST', body, headers: { Accept: 'application/json' } }).catch(() => null);
+    return res ? res.json().catch(() => null) : null;
+  }
+
+  async function start(file: File) {
+    dropError.textContent = '';
+    preview.src = URL.createObjectURL(file);
+    preview.hidden = false;
+    $('prompt').hidden = true;
+    if (busy) return;
+    busy = true;
+    drop.classList.add('busy');
+    try {
+      if (!profileId) {
+        const created = await postJson('/api/profiles', new FormData());
+        if (!created?.ok) throw new Error(created?.error ?? 'COULD NOT START. TRY AGAIN.');
+        profileId = created.id;
+      }
+      const body = new FormData();
+      body.append('photo', file);
+      const up = await postJson(`/api/p/${profileId}/photo`, body);
+      if (!up?.ok) throw new Error(up?.error ?? 'UPLOAD FAILED. TRY AGAIN.');
+      photoReady = true;
+      $('dropLabel').textContent = 'Photo ready. Press Get Started.';
+    } catch (e) {
+      dropError.textContent = (e as Error).message;
+    } finally {
+      busy = false;
+      drop.classList.remove('busy');
+    }
+  }
+
+  fileInput.addEventListener('change', () => fileInput.files?.[0] && start(fileInput.files[0]));
+  ['dragenter', 'dragover'].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', (e) => { const f = (e as DragEvent).dataTransfer?.files?.[0]; if (f) start(f); });
+  window.addEventListener('dragover', (e) => e.preventDefault());
+  window.addEventListener('drop', (e) => e.preventDefault());
+  // Get Started opens the questionnaire pop-up once the photo is in.
+  $('getStarted').addEventListener('click', () => {
+    if (busy) return;
+    if (!photoReady) {
+      dropError.textContent = 'Drop your photo first.';
+      drop.classList.add('nudge');
+      setTimeout(() => drop.classList.remove('nudge'), 1200);
+      return;
+    }
+    document.dispatchEvent(new CustomEvent('quiz:open', { detail: { id: profileId, step: 1, readPhoto: true } }));
+  });
+</script>
+
+<style>
+  /* Top row: the photo drop zone, with the headline and Get Started to its right. */
+  .hero {
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px var(--gap); align-items: center;
+    padding-bottom: 36px; margin-bottom: 8px; border-bottom: 1px solid var(--line);
+  }
+  .intro { grid-column: span 2; display: flex; flex-direction: column; gap: 16px; padding-left: clamp(0px, 3vw, 40px); }
+  .intro > * { max-width: 520px; }
+  .intro h1 { font-size: clamp(1.25rem, 1rem + 1.2vw, 1.9rem); }
+  .start {
+    font: 500 var(--text-xs)/1 var(--font); text-transform: uppercase; letter-spacing: var(--track-label);
+    padding: 15px 28px; border: 0; background: var(--accent); color: var(--accent-ink); cursor: pointer;
+  }
+  .start:hover { background: #774c32; }
+  .instructions { display: flex; flex-direction: column; gap: 6px; }
+  .instructions .lead { font-size: var(--text-md); color: var(--ink); }
+  .drop.nudge { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .empty { padding: 12px 0; }
+  @media (max-width: 900px) { .hero { grid-template-columns: repeat(2, minmax(0, 1fr)); } .intro { grid-column: span 1; padding-left: 0; } }
+  @media (max-width: 560px) { .hero { grid-template-columns: 1fr; } .intro { order: -1; } }
+
+  .drop { position: relative; display: flex; align-items: center; justify-content: center; text-align: center; cursor: pointer; outline: 1px dashed var(--muted); outline-offset: -12px; background: var(--chip); }
+  .drop:hover, .drop.over { outline: 2px solid var(--ink); outline-offset: -2px; }
+  .drop:has(img:not([hidden])) { outline: none; background: var(--surface); }
+  .drop.busy img { opacity: 0.5; }
+  .drop img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .drop input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .prompt { display: flex; flex-direction: column; gap: 6px; padding: 0 16px; }
+  .strong { color: var(--ink); font-size: var(--text-sm); }
+  .card .error:empty { display: none; }
+
+</style>

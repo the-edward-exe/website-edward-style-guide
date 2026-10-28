@@ -1,0 +1,36 @@
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: style
+      POSTGRES_PASSWORD: style
+      POSTGRES_DB: style
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U style"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  app:
+    build: ./app
+    ports:
+      - "4321:4321"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgres://style:style@db:5432/style
+      PHOTO_DIR: /data/photos
+    volumes:
+      - photos:/data/photos
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  photos:
