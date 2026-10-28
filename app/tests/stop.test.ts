@@ -152,3 +152,22 @@ describe('stopping the guide and try-ons', () => {
     expect((await stop(id, 'everything')).status).toBe(400);
   });
 });
+
+describe('deleting a profile', () => {
+  it('stops what it was generating and leaves no files behind', async () => {
+    const { existsSync } = await import('node:fs');
+    const { profileDir } = await import('../src/lib/storage');
+    const { POST: deleteRoute } = await import('../src/pages/api/p/[id]/delete');
+    const { id, attempt } = await photoProfile();
+    vi.mocked(generateCharacterSheet).mockImplementation(untilAborted);
+    const job = runSheetJob(id, attempt);
+    await vi.waitFor(() => expect(generateCharacterSheet).toHaveBeenCalled());
+    const res = await deleteRoute({ params: { id }, request: new Request('http://localhost/', { method: 'POST', body: new URLSearchParams({ confirm: 'DELETE' }) }) } as any);
+    expect(res.status).toBe(303);
+    await job;
+    const signal = vi.mocked(generateCharacterSheet).mock.calls[0][1] as AbortSignal;
+    expect(signal.aborted).toBe(true);
+    expect(await getProfile(id)).toBeNull();
+    expect(existsSync(profileDir(id))).toBe(false);
+  });
+});

@@ -56,14 +56,25 @@ const date = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: '
     : (
       <div class="grid">
         {profiles.map((p) => (
-          <a class="card" href={`/p/${p.id}`}>
-            <div class:list={['pic', { empty: !p.photoPath }]}>
-              {p.photoPath && <img src={`/api/p/${p.id}/image/photo?v=${p.attempt}`} alt={p.name} loading="lazy" />}
-            </div>
-            <span class="label">{stage(p)}</span>
-            <span class="name">{p.name}</span>
-            <span class="sub">{date(p.createdAt)}</span>
-          </a>
+          <div class="pcard">
+            <a class="card" href={`/p/${p.id}`}>
+              <div class:list={['pic', { empty: !p.photoPath }]}>
+                {p.photoPath && <img src={`/api/p/${p.id}/image/photo?v=${p.attempt}`} alt={p.name} loading="lazy" />}
+              </div>
+              <span class="label">{stage(p)}</span>
+              <span class="name">{p.name}</span>
+              <span class="sub">{date(p.createdAt)}</span>
+            </a>
+            <button type="button" class="label del" aria-expanded="false">Delete</button>
+            <form method="post" action={`/api/p/${p.id}/delete`} class="confirm" hidden>
+              <input type="hidden" name="confirm" value="DELETE" />
+              <span class="label">Delete {p.name} and every photo? This can’t be undone.</span>
+              <span class="row">
+                <button type="submit" class="label yes">Delete</button>
+                <button type="button" class="label no">Cancel</button>
+              </span>
+            </form>
+          </div>
         ))}
       </div>
     )}
@@ -123,6 +134,22 @@ const date = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: '
   drop.addEventListener('drop', (e) => { const f = (e as DragEvent).dataTransfer?.files?.[0]; if (f) start(f); });
   window.addEventListener('dragover', (e) => e.preventDefault());
   window.addEventListener('drop', (e) => e.preventDefault());
+  // Delete on a profile card asks first, right on the card.
+  document.querySelectorAll<HTMLElement>('.pcard').forEach((card) => {
+    const del = card.querySelector<HTMLButtonElement>('.del')!;
+    const confirm = card.querySelector<HTMLFormElement>('.confirm')!;
+    const show = (open: boolean) => {
+      confirm.hidden = !open;
+      del.hidden = open;
+      del.setAttribute('aria-expanded', String(open));
+      if (open) confirm.querySelector<HTMLButtonElement>('.no')!.focus();
+      else del.focus();
+    };
+    del.addEventListener('click', () => show(true));
+    confirm.querySelector('.no')!.addEventListener('click', () => show(false));
+    confirm.addEventListener('submit', () => confirm.querySelector<HTMLButtonElement>('.yes')!.disabled = true);
+  });
+
   // Get Started opens the questionnaire pop-up once the photo is in.
   $('getStarted').addEventListener('click', () => {
     if (busy) return;
@@ -166,5 +193,15 @@ const date = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: '
   .prompt { display: flex; flex-direction: column; gap: 6px; padding: 0 16px; }
   .strong { color: var(--ink); font-size: var(--text-sm); }
   .card .error:empty { display: none; }
+
+  .pcard { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .del, .confirm button { background: none; border: 0; padding: 0; cursor: pointer; font: inherit; }
+  .del { align-self: flex-start; color: var(--muted); text-decoration: underline; text-underline-offset: 4px; }
+  .del:hover { color: var(--bad); }
+  .confirm { display: flex; flex-direction: column; gap: 8px; padding: 10px 0 0; border-top: 1px solid var(--line); }
+  .confirm .row { display: flex; gap: 16px; }
+  .confirm .yes { color: var(--bad); text-decoration: underline; text-underline-offset: 4px; }
+  .confirm .yes:disabled { opacity: 0.5; cursor: default; }
+  .confirm .no { color: var(--ink); text-decoration: underline; text-underline-offset: 4px; }
 
 </style>

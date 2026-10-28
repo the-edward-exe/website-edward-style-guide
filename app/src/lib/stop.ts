@@ -56,3 +56,10 @@ export async function stopGeneration(id: string, kind: StopKind, tryonId?: strin
   }
   return rows.length > 0;
 }
+
+/** Before a profile is deleted: cancels every call still running for it, so nothing is paid for or written afterwards. */
+export async function stopAll(id: string): Promise<void> {
+  const tryons = await sql`select id from tryons where profile_id = ${id} and status = 'pending'`;
+  for (const kind of ['sheet', 'looks', 'guide'] as const) await stopGeneration(id, kind);
+  for (const t of tryons) await stopGeneration(id, 'tryon', t.id);
+}

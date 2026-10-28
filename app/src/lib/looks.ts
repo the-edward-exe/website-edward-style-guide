@@ -28,7 +28,7 @@ export function looksPrompt(p: Profile): string {
 About them:
 - Shops: ${t('section')}
 - Body shape closest to: ${t('shape')}; wants clothes to: ${t('goals')}
-- Skin tone: swatch ${a.skinTone ?? '?'} of 7${skin ? ` (${skin.hex})` : ''}; wrist veins look ${t('veins')}; ${t('metal')} jewelry suits them
+- Skin tone: swatch ${a.skinTone ?? '?'} of 7${skin ? ` (${skin.hex})` : ''}; ${t('metal')} jewelry suits them
 - Hair: ${t('hair')}; eyes: ${t('eyes')}
 - Looks they like: ${t('styles')}
 - Colors they love: ${t('loveColors')}; colors they never wear: ${t('avoidColors')}
