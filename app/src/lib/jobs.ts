@@ -1,4 +1,5 @@
-import { getProfile, finishSheet, finishPhotoRead, finishGuide, finishLooks, type Profile } from './profiles';
+import { getProfile, finishSheet, finishPhotoRead, finishGuide, finishLooks, setCapsuleOwned, type Profile } from './profiles';
+import { excludedItems, keepExcluded } from './capsule';
 import { readImage, saveImage } from './storage';
 import { generateCharacterSheet } from './ai/gemini';
 import { readPhoto } from './ai/claude';
@@ -7,7 +8,9 @@ import { generateLooks } from './ai/looks';
 import { generateTryon } from './ai/tryon';
 import { getTryon, finishTryon } from './tryons';
 import { stoppable, stopKey } from './stop';
-import { beginLookImages, finishLookImage, keyOf, lookImagePrompt, lookImageStatus, type LookImageKey } from './look-images';
+import { beginLookImages, finishLookImage, finishLookRewrite, keyOf, lookImagePrompt, lookImageRow, lookImageStatus, type LookImageKey } from './look-images';
+import { generateOutfits, generateReplacement } from './ai/outfits';
+import { finishOutfit, finishOutfitRewrite, finishOutfitRun, getOutfit, getOutfitRun, previousOutfitNames, slotsFor } from './outfits';
 
 const message = (e: unknown) => (e instanceof Error ? e.message : 'SOMETHING WENT WRONG. TRY AGAIN.');
 
@@ -79,7 +82,10 @@ export async function runGuideJob(id: string, attempt: number): Promise<void> {
       await finishGuide(id, attempt, { error: message(e) });
       return;
     }
-    await finishGuide(id, attempt, { guide });
+    // Ticks can change while the guide is written, so read them now.
+    const current = await getProfile(id);
+    const kept = keepExcluded(guide, current ? excludedItems(current) : []);
+    if (await finishGuide(id, attempt, { guide: kept.guide })) await setCapsuleOwned(id, kept.owned);
   } catch (e) {
     console.error('guide job failed', e);
   }
@@ -147,14 +153,25 @@ async function stillCurrentLooks(k: LookImageKey): Promise<Profile | null> {
 export async function runLookImage(k: LookImageKey, idx: number): Promise<void> {
   try {
     const p = await stillCurrentLooks(k);
-    const look = p?.looks?.looks[idx];
-    if (!p || !look || !p.sheetPath) return;
+    const removed = p?.looks?.looks[idx];
+    if (!p || !removed || !p.sheetPath) return;
     // Stop marks the pictures still waiting in the queue too; skip those.
-    if ((await lookImageStatus(k, idx)) !== 'pending') return;
+    const row = await lookImageRow(k, idx);
+    if (row?.status !== 'pending') return;
     const sheet = await readImage(p.sheetPath);
     let image: Buffer;
     try {
-      image = await stoppable(stopKey.looks(k.id), (signal) => generateTryon(sheet, lookImagePrompt(p, look), signal));
+      let look = removed;
+      if (row.replacing) {
+        // The X was pressed on this look: write its replacement first.
+        const photo = await readImage(p.photoPath!);
+        const previous = [...(p.looks?.looks.map((l) => l.name) ?? []), ...(await previousOutfitNames(p.id))];
+        const written = await stoppable(stopKey.looks(k.id), (signal) => generateReplacement(p, photo, { style: removed.style }, previous, removed.name, signal));
+        look = { ...written, style: removed.style };
+        if (!(await finishLookRewrite(k, idx, look))) return;
+      }
+      const dressed = look;
+      image = await stoppable(stopKey.looks(k.id), (signal) => generateTryon(sheet, lookImagePrompt(p, dressed), signal));
     } catch (e) {
       await finishLookImage(k, idx, { error: message(e) });
       return;
@@ -189,4 +206,72 @@ export function startLookImages(id: string): void {
 
 export function startLookImage(k: LookImageKey, idx: number): void {
   void runLookImage(k, idx);
+}
+
+export async function runOutfitImage(outfitId: string): Promise<void> {
+  try {
+    const o = await getOutfit(outfitId);
+    if (o?.status !== 'pending') return;
+    const p = await getProfile(o.profileId);
+    if (!p) return;
+    let image: Buffer;
+    try {
+      if (!p.sheetPath) throw new Error('NEEDS YOUR CHARACTER SHEET. TRY AGAIN ONCE IT IS READY.');
+      const sheet = await readImage(p.sheetPath);
+      let look = o.look;
+      if (o.replacing) {
+        // The X was pressed on this outfit: write its replacement first.
+        if (!p.photoPath) throw new Error('NEEDS YOUR PHOTO. ADD ONE AND TRY AGAIN.');
+        const photo = await readImage(p.photoPath);
+        const previous = await previousOutfitNames(p.id);
+        look = await stoppable(stopKey.outfits(p.id), (signal) =>
+          generateReplacement(p, photo, { season: o.season, style: o.style }, previous, o.look.name, signal));
+        if (!(await finishOutfitRewrite(o.id, look))) return;
+      }
+      const dressed = look;
+      image = await stoppable(stopKey.outfits(p.id), (signal) => generateTryon(sheet, lookImagePrompt(p, dressed), signal));
+    } catch (e) {
+      await finishOutfit(o.id, { error: message(e) });
+      return;
+    }
+    // Stopped, or the profile deleted, while Gemini worked: write nothing.
+    if ((await getOutfit(o.id))?.status !== 'pending') return;
+    await finishOutfit(o.id, { path: await saveImage(p.id, 'outfit', image) });
+  } catch (e) {
+    console.error('outfit image job failed', e);
+  }
+}
+
+/** Writes a run's ten outfits, then makes their pictures. */
+export async function runOutfitsJob(runId: string): Promise<void> {
+  try {
+    const run = await getOutfitRun(runId);
+    const p = run && (await getProfile(run.profileId));
+    if (!run || !p || run.status !== 'pending') return;
+    let looks;
+    try {
+      if (!p.photoPath) throw new Error('NEEDS YOUR PHOTO. ADD ONE AND TRY AGAIN.');
+      const photo = await readImage(p.photoPath);
+      const previous = await previousOutfitNames(p.id);
+      looks = await stoppable(stopKey.outfits(p.id), (signal) => generateOutfits(p, photo, slotsFor(run), previous, signal));
+    } catch (e) {
+      await finishOutfitRun(runId, { error: message(e) });
+      return;
+    }
+    const queue = await finishOutfitRun(runId, { looks });
+    const worker = async () => {
+      for (let id = queue.shift(); id !== undefined; id = queue.shift()) await runOutfitImage(id);
+    };
+    await Promise.all(Array.from({ length: LOOK_IMAGES_AT_ONCE }, worker));
+  } catch (e) {
+    console.error('outfits job failed', e);
+  }
+}
+
+export function startOutfitsJob(runId: string): void {
+  void runOutfitsJob(runId);
+}
+
+export function startOutfitImage(outfitId: string): void {
+  void runOutfitImage(outfitId);
 }

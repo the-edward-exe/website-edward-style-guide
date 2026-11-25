@@ -1,6 +1,7 @@
 import { z } from 'zod/v4';
 import { SKIN_SWATCHES, STEPS, type AnswerKey } from './questionnaire';
 import { answerText } from './guide';
+import { excludedLine } from './capsule';
 import type { Profile } from './profiles';
 
 export const LOOK_COUNT = 10;
@@ -22,13 +23,16 @@ export type Looks = z.infer<typeof LooksSchema>;
 /** How many of the ten looks each chosen taste gets. */
 export type StyleSplit = { style: string; count: number }[];
 
-const STYLE_LABELS = new Map(
-  STEPS.flatMap((s) => s.questions.flatMap((q) => q.fields)).find((f) => f.key === 'styles')?.options?.map((o) => [o.value, o.label]) ?? [],
-);
+/** The tastes offered in the questionnaire. */
+export const STYLE_OPTIONS = STEPS.flatMap((s) => s.questions.flatMap((q) => q.fields)).find((f) => f.key === 'styles')?.options ?? [];
+
+const STYLE_LABELS = new Map(STYLE_OPTIONS.map((o) => [o.value, o.label]));
+
+export const styleLabel = (style: string): string => STYLE_LABELS.get(style) ?? style;
 
 /** Splits the ten looks as evenly as possible across the chosen tastes, in the order picked; earlier tastes take any extra. */
 export function styleSplit(styles: readonly string[] | undefined): StyleSplit {
-  const labels = (styles?.length ? styles : ['any']).slice(0, LOOK_COUNT).map((s) => STYLE_LABELS.get(s) ?? s);
+  const labels = (styles?.length ? styles : ['any']).slice(0, LOOK_COUNT).map(styleLabel);
   const base = Math.floor(LOOK_COUNT / labels.length);
   const extra = LOOK_COUNT % labels.length;
   return labels.map((style, i) => ({ style, count: base + (i < extra ? 1 : 0) }));
@@ -53,12 +57,11 @@ export function orderBySplit(looks: Look[], split: StyleSplit): Look[] {
   return looks.map((l, i) => ({ l, i })).sort((a, b) => rank(a.l) - rank(b.l) || a.i - b.i).map((x) => x.l).slice(0, LOOK_COUNT);
 }
 
-/** The ten quick looks shown on the sheet page, before the full guide is written. */
-export function looksPrompt(p: Profile): string {
+/** What every outfit prompt says about the person. */
+export function aboutPerson(p: Profile): string {
   const a = p.answers;
   const t = (k: AnswerKey) => answerText(a, k);
   const skin = SKIN_SWATCHES.find((s) => s.tone === Number(a.skinTone));
-  const split = styleSplit(a.styles);
 
   return `You are a personal stylist. Suggest outfits for ${p.name}, who appears in the attached photo. Write plainly and concretely. No exclamation marks, no em dashes.
 
@@ -71,9 +74,16 @@ About them:
 - Colors they love: ${t('loveColors')}; colors they never wear: ${t('avoidColors')}
 - Avoids: ${t('avoid')}
 - Work dress code: ${t('dressCode')}; outfits wanted for: ${t('occasions')}
-- Lives in: ${t('location')}
+- Lives in: ${t('location')}${excludedLine(p)}
 
-Use the photo to judge their coloring; the answers win where they disagree.
+Use the photo to judge their coloring; the answers win where they disagree.`;
+}
+
+/** The ten quick looks shown on the sheet page, before the full guide is written. */
+export function looksPrompt(p: Profile): string {
+  const split = styleSplit(p.answers.styles);
+
+  return `${aboutPerson(p)}
 
 Return exactly ${LOOK_COUNT} looks, split across the looks they like exactly like this:
 ${split.map((s) => `- ${s.count} ${s.style}`).join('\n')}

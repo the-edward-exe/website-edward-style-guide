@@ -41,13 +41,13 @@ Store ids map to the `STORES` object in the same file.
 
 ## Vestry (local app)
 
-The `app/` folder holds **Vestry**, the multi-person version. Drop one photo, answer 12 questions, and approve a Gemini character sheet. Claude then writes a personal guide (palette, fit and styling rules, capsule, 12 outfits with shop links), and the dressing room puts any outfit on you with Gemini. Every image downloads, and Download all saves the newest try-on of each outfit as a zip. It runs locally in Docker.
+The `app/` folder holds **Vestry**, the multi-person version. Drop one photo, answer 12 questions, and approve a Gemini character sheet. Claude then writes a personal guide (palette, fit and styling rules, capsule, 12 outfits with shop links), and Your Colors puts any outfit on you with Gemini. Every image downloads, and Download all saves the newest try-on of each outfit as a zip. It runs locally in Docker.
 
 1. Copy `.env.example` to `.env` and add your keys:
    - `GEMINI_API_KEY` from https://aistudio.google.com/apikey (character sheets and try-ons, about $0.15 each)
    - `ANTHROPIC_API_KEY` from https://console.anthropic.com/settings/keys (reads coloring from the photo and writes the guide)
 2. Run `docker compose up --build` in the repo root.
-3. Open http://localhost:4321.
+3. Open http://localhost:4500.
 
 Without a key, that feature runs in demo mode: sheets and try-ons are plain gray placeholders, the coloring questions start blank, and the guide is a fixed demo guide.
 
@@ -56,3 +56,16 @@ Data lives in two Docker volumes: `pgdata` (profiles and answers) and `photos` (
 Tests: start the database with `docker compose up -d db`, then run `npm test` in `app/`. Tests use a separate `style_test` database.
 
 Design spec: `docs/superpowers/specs/2026-10-25-style-file-app-design.md`. Design system: `app/DESIGN.md`.
+
+## Vestry on Modal (online copy)
+
+The online copy runs on Modal at https://the-edward-exe--vestry-web.us-east.modal.run.
+It is a separate copy: profiles made there are not in the local Docker app, and the other way round.
+
+- **Sign-in:** the browser asks for a user name and password. Both are in `.env.modal` (gitignored), as `SITE_USER` and `SITE_PASSWORD`.
+  To change them, update the Modal secret `vestry`, then run `modal deploy modal_app.py`. The local Docker app has no sign-in.
+- **Database:** Neon Postgres (project `delicate-water-36475525`, branch `production`). Its address is in `app/.env.local` (gitignored).
+- **Photos:** Modal volume `vestry-photos`.
+- **Keys and settings:** Modal secret `vestry` holds `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `CLAUDE_MODEL`, `GEMINI_MODEL`, `DATABASE_URL` (Neon, direct connection), `SITE_USER` and `SITE_PASSWORD`.
+- **Deploy a change:** `modal deploy modal_app.py` from the repo root.
+- The server sleeps after an hour with no visits. A generation still running when it sleeps is marked "Interrupted. Try again."

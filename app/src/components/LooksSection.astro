@@ -1,0 +1,184 @@
+---
+import Button from './Button.astro';
+import { amazonUrl } from '../lib/shop';
+import { listLookImages } from '../lib/look-images';
+import { canMakeOutfits } from '../lib/outfits';
+import type { Profile } from '../lib/profiles';
+
+interface Props { profile: Profile }
+const { profile } = Astro.props;
+
+const { looks, looksStatus, looksError, sheetStatus: status } = profile;
+const lookImages = await listLookImages(profile);
+const version = (path: string | null | undefined) => path?.match(/look-(\d+)/)?.[1] ?? '';
+// Writing the looks, or pictures still to come (a look with no row yet is about to be claimed).
+const looksBusy = looksStatus === 'pending' || (looksStatus === 'ready' && status === 'ready'
+  && (lookImages.length < (looks?.looks.length ?? 0) || lookImages.some((i) => i.status === 'pending')));
+---
+  <section class="looks" id="looks" aria-labelledby="looksTitle">
+    <div class="lhead">
+      <span class="label">Skin Tone Styles</span>
+      <h2 id="looksTitle">10 looks for your skin tone and style</h2>
+      {looksStatus === 'ready' && (
+        <p class="label">
+          Each look is made on your character sheet. {status === 'ready' ? 'Pictures take a minute or two.' : 'Pictures start once your sheet is ready.'}
+          <a class="dl" id="lookZip" href={`/api/p/${profile.id}/looks/zip`} hidden={!lookImages.some((i) => i.status === 'ready')}>Download all</a>
+        </p>
+      )}
+      <div class="lactions">
+        <button type="button" class="taste" data-edit-step="3">Change your taste</button>
+        {canMakeOutfits(profile) && <Button href="#outfits">Make new outfits</Button>}
+        <form method="post" action={`/api/p/${profile.id}/stop`} id="lookStop" hidden={!looksBusy}>
+          <input type="hidden" name="what" value="looks" />
+          <Button>Stop</Button>
+        </form>
+      </div>
+      <p class="label">
+        {looksStatus === 'ready' && canMakeOutfits(profile)
+          ? 'Pick different looks, colors or things to avoid. These 10 stay here, and 10 new outfits are added to New Outfits below.'
+          : 'Pick different looks, colors or things to avoid. Your 10 looks are made again.'}
+      </p>
+    </div>
+    {looksStatus === 'pending' && (
+      <div class="lgrid">
+        {Array.from({ length: 10 }, () => <div class="lcard"><div class="lframe waiting"><span class="label pulse">Writing your looks</span></div></div>)}
+      </div>
+    )}
+    {looksStatus === 'failed' && (
+      <div class="lfail">
+        <span class="error">{looksError}</span>
+        <form method="post" action={`/api/p/${profile.id}/looks`}><Button>Try again</Button></form>
+      </div>
+    )}
+    {looksStatus === 'ready' && looks && (
+      <ol class="lgrid">
+        {looks.looks.map((l, i) => {
+          const img = lookImages.find((x) => x.idx === i);
+          // No row yet while the claim is in flight: show it as being made if it can be.
+          const state = img?.status ?? (status === 'ready' ? 'pending' : 'waiting');
+          const n = i + 1;
+          return (
+            <li class="lcard" id={`look-${n}`}>
+              <div class="shot">
+              <div class:list={['lframe', { waiting: state !== 'ready' }]} data-n={n} data-status={state} data-replacing={String(!!img?.replacing)} data-v={version(img?.path)} data-alt={`${profile.name} wearing ${l.name}`}>
+                {state === 'ready' && <img src={`/api/p/${profile.id}/looks/${n}?v=${version(img?.path)}`} alt={`${profile.name} wearing ${l.name}`} loading="lazy" />}
+                {state === 'pending' && <span class="label pulse">{img?.replacing ? 'Making a new outfit' : 'Dressing you'}</span>}
+                {state === 'waiting' && <span class="label">{status === 'failed' ? 'Needs your character sheet' : 'Waiting for your sheet'}</span>}
+                {state === 'failed' && (
+                  <>
+                    <span class="error">{img?.error}</span>
+                    <form method="post" action={`/api/p/${profile.id}/looks/${n}`}><Button>Try again</Button></form>
+                  </>
+                )}
+              </div>
+              <form class="x" method="post" action={`/api/p/${profile.id}/looks/${n}/replace`} hidden={!img || img.status === 'pending' || img.replacing}>
+                <button type="submit" aria-label={`Remove ${l.name} and make a new look`} title="Remove and make a new one">×</button>
+              </form>
+              </div>
+              <div class="lmeta">
+                <span class="label">{String(n).padStart(2, '0')} · {l.style}</span>
+                <a class="label dl" href={`/api/p/${profile.id}/looks/${n}?download=1`} hidden={state !== 'ready'}>Download</a>
+              </div>
+              {!img?.replacing && (<>
+              <span class="lname">{l.name}</span>
+              <ul class="pieces">{l.pieces.map((pc) => <li><i style={`background:${pc.hex}`} /><a href={amazonUrl(pc, profile.answers.section)} target="_blank" rel="noopener noreferrer" aria-label={`Shop ${pc.color} ${pc.item} on Amazon (opens in a new tab)`}>{pc.item}</a><em>{pc.color}</em></li>)}</ul>
+              <p class="why">{l.why}</p>
+              </>)}
+            </li>
+          );
+        })}
+      </ol>
+    )}
+  </section>
+
+<script define:vars={{ id: profile.id, status, looksStatus }}>
+  // The sheet or the written looks finishing reloads the page. Look pictures swap in place as each one lands.
+  const frames = () => [...document.querySelectorAll('.lframe[data-n]')];
+  const busy = () => status === 'pending' || looksStatus === 'pending' || frames().some((f) => f.dataset.status === 'pending');
+
+  function paint(frame, img) {
+    // A failure needs the server-rendered Try again button.
+    if (img.status === 'failed') return location.reload();
+    const n = frame.dataset.n;
+    frame.dataset.status = img.status;
+    frame.dataset.v = img.v ?? '';
+    frame.classList.toggle('waiting', img.status !== 'ready');
+    frame.replaceChildren();
+    if (img.status === 'ready') {
+      const el = document.createElement('img');
+      el.src = `/api/p/${id}/looks/${n}?v=${img.v}`;
+      el.alt = frame.dataset.alt;
+      frame.append(el);
+    } else if (img.status === 'pending') {
+      const el = document.createElement('span');
+      el.className = 'label pulse';
+      el.textContent = 'Dressing you';
+      frame.append(el);
+    }
+    const card = frame.closest('.lcard');
+    const dl = card.querySelector('.lmeta a');
+    card.querySelector('.x').hidden = img.status !== 'ready';
+    if (dl) dl.hidden = img.status !== 'ready';
+  }
+
+  const poll = async () => {
+    const s = await fetch(`/api/p/${id}/status`).then((r) => r.json()).catch(() => null);
+    if (s && (s.sheetStatus !== status || s.looksStatus !== looksStatus)) return location.reload();
+    if (s) {
+      for (const frame of frames()) {
+        const img = s.lookImages[Number(frame.dataset.n) - 1];
+        if (img && String(img.replacing) !== frame.dataset.replacing) return location.reload();
+        if (img && (img.status !== frame.dataset.status || (img.v ?? '') !== frame.dataset.v)) paint(frame, img);
+      }
+      const zip = document.getElementById('lookZip');
+      if (zip) zip.hidden = !s.lookImages.some((i) => i.status === 'ready');
+      const stop = document.getElementById('lookStop');
+      if (stop && looksStatus === 'ready') stop.hidden = !frames().some((f) => f.dataset.status === 'pending');
+    }
+    if (busy()) setTimeout(poll, 3000);
+  };
+  if (busy()) setTimeout(poll, 3000);
+</script>
+
+<style>
+  .pulse { animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: 0.4; } }
+  .dl { margin-left: 8px; text-decoration: underline; text-underline-offset: 4px; }
+  .dl:hover { color: var(--ink); }
+  .lhead { display: flex; flex-direction: column; gap: 6px; margin-bottom: 20px; }
+  .lactions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
+  .taste {
+    font: 500 var(--text-xs)/1 var(--font); text-transform: uppercase; letter-spacing: var(--track-label);
+    padding: 13px 22px; border: 0; background: var(--accent); color: var(--accent-ink); cursor: pointer;
+  }
+  .taste:hover { background: #774c32; }
+  .lgrid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--gap); }
+  .lcard { display: flex; flex-direction: column; gap: 8px; min-width: 0; scroll-margin-top: 20px; }
+  .shot { position: relative; }
+  .x {
+    position: absolute; top: 6px; right: 6px; margin: 0;
+  }
+  .x button {
+    display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; border: 1px solid var(--line);
+    background: var(--surface); color: var(--ink); font: 500 1.05rem/1 var(--font); cursor: pointer;
+  }
+  .x button:hover { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .lframe { background: var(--surface); aspect-ratio: 3 / 4; display: flex; flex-direction: column; gap: 12px; align-items: center; justify-content: center; overflow: hidden; }
+  .lframe :global(img) { width: 100%; height: 100%; object-fit: cover; }
+  .lframe :global(.pulse) { animation: pulse 1.6s ease-in-out infinite; }
+  .lframe.waiting { background: var(--chip); padding: 16px; text-align: center; }
+  .lmeta { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-top: 4px; }
+  .lmeta .dl { margin-left: 0; }
+  .lname { text-transform: uppercase; letter-spacing: var(--track-label); font-size: var(--text-sm); font-weight: 500; }
+  .pieces { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: var(--text-xs); }
+  .pieces li { display: flex; align-items: center; gap: 6px; }
+  .pieces em { font-style: normal; color: var(--muted); }
+  .pieces a { text-decoration: underline; text-underline-offset: 3px; }
+  .pieces a:hover { color: var(--accent); }
+  .pieces i { width: 10px; height: 10px; flex: none; border: 1px solid var(--line); }
+  .why { margin: 0; font-size: var(--text-xs); color: var(--muted); }
+  .lfail { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+  @media (max-width: 1100px) { .lgrid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  @media (max-width: 760px) { .lgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (prefers-reduced-motion: reduce) { .pulse, .lframe :global(.pulse) { animation: none; } }
+</style>

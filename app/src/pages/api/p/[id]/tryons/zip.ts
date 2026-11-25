@@ -30,7 +30,7 @@ export const GET: APIRoute = async ({ params }) => {
   return new Response(zip, {
     headers: {
       'Content-Type': 'application/zip',
-      'Content-Disposition': `attachment; filename="${downloadName(profile.name, 'dressing-room', undefined, 'zip')}"`,
+      'Content-Disposition': `attachment; filename="${downloadName(profile.name, 'your-colors', undefined, 'zip')}"`,
     },
   });
 };

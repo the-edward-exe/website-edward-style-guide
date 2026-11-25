@@ -20,7 +20,7 @@ function stage(p: Profile): string {
 }
 const date = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase();
 ---
-<Base title="Profiles">
+<Base title="Profiles" profile={resume} current={resume ? 'questions' : undefined}>
   <section class="hero" id="start">
     <div class="card">
       <label class="pic drop" id="drop">

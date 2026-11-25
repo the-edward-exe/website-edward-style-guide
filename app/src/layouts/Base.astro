@@ -1,8 +1,10 @@
 ---
 import '../styles/global.css';
 import TopBar from '../components/TopBar.astro';
-interface Props { title: string; right?: { href: string; label: string } }
-const { title, right } = Astro.props;
+import type { Profile } from '../lib/profiles';
+import type { NavKey } from '../lib/nav';
+interface Props { title: string; profile?: Profile | null; current?: NavKey }
+const { title, profile, current } = Astro.props;
 ---
 <!doctype html>
 <html lang="en">
@@ -13,7 +15,7 @@ const { title, right } = Astro.props;
     <title>{title} | Vestry</title>
   </head>
   <body>
-    <TopBar right={right} />
+    <TopBar profile={profile} current={current} />
     <main class="page"><slot /></main>
   </body>
 </html>

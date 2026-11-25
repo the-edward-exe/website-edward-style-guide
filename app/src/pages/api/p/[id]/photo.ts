@@ -5,7 +5,7 @@ import { saveImage } from '../../../../lib/storage';
 import { startPhotoJobs } from '../../../../lib/jobs';
 import { seeOther, readForm, wantsJson } from '../../../../lib/http';
 
-// The drag-and-drop page posts with Accept: application/json and stays put;
+// The character sheet page posts with Accept: application/json and stays put;
 // a plain form post (no JavaScript) still redirects.
 export const POST: APIRoute = async ({ params, request }) => {
   const profile = await getProfile(params.id!);
@@ -15,7 +15,7 @@ export const POST: APIRoute = async ({ params, request }) => {
   const fail = (msg: string) =>
     json
       ? Response.json({ ok: false, error: msg }, { status: 400 })
-      : seeOther(`/p/${profile.id}/photo?error=${encodeURIComponent(msg)}`);
+      : seeOther(`/p/${profile.id}/sheet?error=${encodeURIComponent(msg)}`);
 
   const file = (await readForm(request)).get('photo');
   if (!(file instanceof File) || file.size === 0) return fail('CHOOSE A PHOTO FIRST.');

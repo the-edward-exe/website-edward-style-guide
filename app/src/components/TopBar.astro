@@ -1,28 +1,142 @@
 ---
-interface Props { right?: { href: string; label: string } }
-const { right = { href: '/#start', label: 'New profile' } } = Astro.props;
+import { listProfiles, type Profile } from '../lib/profiles';
+import { profileNav, type NavKey } from '../lib/nav';
+
+interface Props { profile?: Profile | null; current?: NavKey }
+const { profile, current } = Astro.props;
+
+const profiles = await listProfiles();
+const steps = profile ? profileNav(profile, current) : [];
+const onHome = Astro.url.pathname === '/' && !profile;
+const date = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+const setup = new Set<NavKey>(['sheet', 'questions', 'guide']);
 ---
 <header class="top">
-  <nav class="left"><a href="/">Profiles</a></nav>
-  <a class="mark" href="/">Vestry</a>
-  <nav class="right"><a href={right.href}>{right.label}</a></nav>
+  <div class="bar">
+    <nav class="main" aria-label="Main">
+      <a class="add" href="/#start">New profile</a>
+      <details class="menu switch">
+        <summary aria-current={onHome ? 'page' : undefined}>Profiles</summary>
+        <ul>
+          <li><a class="all" href="/" aria-current={onHome ? 'page' : undefined}><span>All profiles</span></a></li>
+          {profiles.map((p) => (
+            <li>
+              <a href={`/p/${p.id}`} aria-current={p.id === profile?.id ? 'true' : undefined}>
+                <span>{p.name}</span><small>{date(p.createdAt)}</small>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </details>
+    </nav>
+    <a class="mark" href="/">Vestry</a>
+  </div>
+
+  {profile && (
+    <nav class="steps" aria-label={`${profile.name}'s profile`} data-current={current}>
+      <span class="who">{profile.name}</span>
+      <ol>
+        {steps.map((s) => (
+          <li class:list={[{ gap: s.key === 'room' }]}>
+            {s.href && (
+              <a href={s.href} data-key={s.key} class:list={[{ next: s.next, done: s.done }]} aria-current={s.current ? 'page' : undefined}>
+                {setup.has(s.key) && <span class="n" aria-hidden="true">{s.done ? '✓' : ''}</span>}
+                {s.label}
+                {s.done && <span class="sr">, done</span>}
+                {s.next && <span class="sr">, do this next</span>}
+              </a>
+            )}
+            {!s.href && (
+              <span class="locked" title={s.locked ?? undefined}>
+                {setup.has(s.key) && <span class="n" aria-hidden="true"></span>}
+                {s.label}
+                <span class="sr">, locked. {s.locked}.</span>
+              </span>
+            )}
+          </li>
+        ))}
+      </ol>
+    </nav>
+  )}
 </header>
 
+<script>
+  const menus = [...document.querySelectorAll<HTMLDetailsElement>('details.menu')];
+  // One menu open at a time; a click elsewhere or Escape closes it.
+  menus.forEach((m) => m.addEventListener('toggle', () => {
+    if (m.open) menus.forEach((o) => { if (o !== m) o.open = false; });
+  }));
+  document.addEventListener('click', (e) => menus.forEach((m) => { if (m.open && !m.contains(e.target as Node)) m.open = false; }));
+  document.addEventListener('keydown', (e) => {
+    const open = menus.find((m) => m.open);
+    if (e.key === 'Escape' && open) { open.open = false; open.querySelector('summary')?.focus(); }
+  });
+
+  const steps = document.querySelector<HTMLElement>('.steps');
+  // Your Colors is a section of the guide page, so the address decides which of the two is lit.
+  if (steps?.dataset.current === 'guide') {
+    const guide = steps.querySelector('[data-key=guide]');
+    const room = steps.querySelector('[data-key=room]');
+    const sync = () => {
+      const inRoom = !!room && location.hash === '#room';
+      room?.toggleAttribute('aria-current', false);
+      guide?.toggleAttribute('aria-current', false);
+      (inRoom ? room : guide)?.setAttribute('aria-current', 'page');
+    };
+    addEventListener('hashchange', sync);
+    sync();
+  }
+  // On a narrow screen the row scrolls; start with the current step in view.
+  steps?.querySelector('a[aria-current=page]')?.scrollIntoView({ block: 'nearest', inline: 'center' });
+</script>
+
 <style>
-  .top {
-    position: sticky; top: 0; z-index: 10;
-    display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
-    padding: 14px var(--gutter);
-    background: var(--surface); border-bottom: 1px solid var(--line);
+  .top { position: sticky; top: 0; z-index: 10; background: var(--surface); border-bottom: 1px solid var(--line); }
+  .bar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; padding: 14px var(--gutter); }
+  .add, summary, .steps a, .locked, .who {
+    font-size: var(--text-xs); text-transform: uppercase; letter-spacing: var(--track-label); color: var(--ink); text-decoration: none;
   }
-  nav a {
-    font-size: var(--text-xs); text-transform: uppercase; letter-spacing: var(--track-label);
-    color: var(--ink); opacity: 0.75; text-decoration: none;
-  }
-  nav a:hover { opacity: 1; text-decoration: underline; text-underline-offset: 4px; }
-  .right { justify-self: end; }
-  .mark {
-    font-weight: 600; font-size: 1.15rem; text-transform: uppercase; letter-spacing: 0.22em;
-    text-decoration: none; color: var(--ink);
+  .main { display: flex; align-items: center; gap: 18px; }
+  .add:hover, .switch summary:hover { text-decoration: underline; text-underline-offset: 4px; }
+  .switch summary[aria-current] { font-weight: 600; }
+  .mark { font-weight: 600; font-size: 1.15rem; text-transform: uppercase; letter-spacing: 0.22em; text-decoration: none; color: var(--ink); }
+
+  summary { cursor: pointer; list-style: none; }
+  summary::-webkit-details-marker { display: none; }
+  summary::after { content: ' +'; }
+  .menu[open] summary::after { content: ' −'; }
+  .menu ul { list-style: none; margin: 0; padding: 0; background: var(--surface); border: 1px solid var(--line); }
+  .menu ul li + li { border-top: 1px solid var(--line); }
+
+  .switch { position: relative; justify-self: start; width: fit-content; }
+  .switch ul { position: absolute; left: 0; top: calc(100% + 12px); width: min(260px, calc(100vw - 32px)); max-height: 60vh; overflow-y: auto; }
+  .switch a { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 11px 12px; text-decoration: none; font-size: var(--text-sm); }
+  .switch a:hover { background: var(--chip); }
+  .switch a[aria-current] { background: var(--chip); font-weight: 600; }
+  .switch .all { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: var(--track-label); }
+  .switch span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .switch small { flex: none; color: var(--muted); font-size: var(--text-xs); }
+
+  .steps { position: relative; display: flex; align-items: center; gap: 18px; padding: 0 var(--gutter); border-top: 1px solid var(--line); background: var(--bg); overflow-x: auto; scrollbar-width: none; }
+  .steps::-webkit-scrollbar { display: none; }
+  .who { flex: none; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+  .steps ol { display: flex; list-style: none; margin: 0; padding: 0; }
+  .steps ol > li { flex: none; }
+  .steps li.gap { margin-left: 10px; padding-left: 10px; border-left: 1px solid var(--line); }
+  .steps a, .locked { display: flex; align-items: center; gap: 6px; padding: 11px 10px; white-space: nowrap; border-bottom: 2px solid transparent; }
+  .steps a:hover { background: var(--chip); }
+  .steps a:focus-visible { outline-offset: -2px; }
+  .steps a[aria-current=page] { border-bottom-color: var(--ink); font-weight: 600; }
+  .steps a.next { color: var(--accent); font-weight: 600; }
+  .locked { color: var(--muted); cursor: not-allowed; }
+  .n { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; background: var(--chip); font-size: 0.625rem; letter-spacing: 0; }
+  .done .n { background: var(--ok); color: var(--accent-ink); }
+  .next .n { background: var(--accent); color: var(--accent-ink); }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+  @media (max-width: 640px) {
+    .bar { padding-block: 11px; }
+    .who { display: none; }
+    .steps { padding-inline: 6px; }
   }
 </style>

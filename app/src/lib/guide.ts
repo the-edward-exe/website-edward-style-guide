@@ -1,6 +1,7 @@
 import { z } from 'zod/v4';
 import { STORE_IDS, STORES, storesFor } from './stores';
 import { STEPS, SKIN_SWATCHES, type Answers, type AnswerKey } from './questionnaire';
+import { excludedLine } from './capsule';
 import type { Profile } from './profiles';
 
 const hex = z.string().regex(/^#[0-9A-Fa-f]{6}$/);
@@ -71,7 +72,7 @@ About them:
 - Avoids: ${t('avoid')}
 - Work dress code: ${t('dressCode')}; outfits wanted for: ${t('occasions')}
 - Lives in: ${t('location')} (use its climate for fabric weights and seasons)
-- Budget per piece: ${t('budget')}
+- Budget per piece: ${t('budget')}${excludedLine(p)}
 
 Use the photo to judge their coloring and proportions; the answers win where they disagree.
 

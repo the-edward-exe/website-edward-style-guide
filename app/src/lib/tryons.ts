@@ -48,7 +48,7 @@ export async function getTryon(id: string): Promise<Tryon | null> {
   return r ? toTryon(r) : null;
 }
 
-/** All try-ons for a profile, or only those made for one guide (the dressing room shows the current guide's). */
+/** All try-ons for a profile, or only those made for one guide (Your Colors shows the current guide's). */
 export async function listTryons(profileId: string, guideAttempt?: number): Promise<Tryon[]> {
   const rows = guideAttempt === undefined
     ? await sql`select * from tryons where profile_id = ${profileId} order by outfit_id, version`

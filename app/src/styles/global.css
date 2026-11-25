@@ -4,7 +4,8 @@
 @import './tokens.css';
 
 * { box-sizing: border-box; }
-html { color-scheme: light; }
+html { color-scheme: light; scroll-padding-top: 72px; }
+html:has(.steps) { scroll-padding-top: 116px; }
 body {
   margin: 0;
   background: var(--bg);

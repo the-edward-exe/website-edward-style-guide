@@ -2,7 +2,7 @@ import { sql } from './db';
 
 export const STOPPED = 'STOPPED. TRY AGAIN WHEN YOU ARE READY.';
 
-export const STOP_KINDS = ['sheet', 'looks', 'guide', 'tryon'] as const;
+export const STOP_KINDS = ['sheet', 'looks', 'guide', 'tryon', 'outfits'] as const;
 export type StopKind = (typeof STOP_KINDS)[number];
 
 // Model calls in flight, by what Stop cancels: a profile's sheet, looks (text and pictures) or guide, or one try-on.
@@ -13,6 +13,7 @@ export const stopKey = {
   looks: (id: string) => `looks:${id}`,
   guide: (id: string) => `guide:${id}`,
   tryon: (tryonId: string) => `tryon:${tryonId}`,
+  outfits: (id: string) => `outfits:${id}`,
 };
 
 /** Runs work with a signal that Stop aborts. */
@@ -49,6 +50,11 @@ export async function stopGeneration(id: string, kind: StopKind, tryonId?: strin
   } else if (kind === 'guide') {
     rows = await sql`update profiles set guide_status = 'failed', guide_error = ${STOPPED} where id = ${id} and guide_status = 'pending' returning id`;
     abort(stopKey.guide(id));
+  } else if (kind === 'outfits') {
+    const text = await sql`update outfit_runs set status = 'failed', error = ${STOPPED} where profile_id = ${id} and status = 'pending' returning id`;
+    const pictures = await sql`update outfits set status = 'failed', error = ${STOPPED} where profile_id = ${id} and status = 'pending' returning id`;
+    rows = [...text, ...pictures];
+    abort(stopKey.outfits(id));
   } else {
     if (!tryonId) return false;
     rows = await sql`update tryons set status = 'failed', error = ${STOPPED} where id = ${tryonId} and profile_id = ${id} and status = 'pending' returning id`;
@@ -60,6 +66,6 @@ export async function stopGeneration(id: string, kind: StopKind, tryonId?: strin
 /** Before a profile is deleted: cancels every call still running for it, so nothing is paid for or written afterwards. */
 export async function stopAll(id: string): Promise<void> {
   const tryons = await sql`select id from tryons where profile_id = ${id} and status = 'pending'`;
-  for (const kind of ['sheet', 'looks', 'guide'] as const) await stopGeneration(id, kind);
+  for (const kind of ['sheet', 'looks', 'guide', 'outfits'] as const) await stopGeneration(id, kind);
   for (const t of tryons) await stopGeneration(id, 'tryon', t.id);
 }

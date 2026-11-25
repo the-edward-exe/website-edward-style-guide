@@ -9,6 +9,7 @@ import { nextPath } from '../../../lib/questionnaire';
 import { STORES } from '../../../lib/stores';
 import { aiMode } from '../../../lib/ai/mode';
 import { tryonPrompt } from '../../../lib/ai/tryon';
+import { canMakeOutfits } from '../../../lib/outfits';
 
 const profile = await getProfile(Astro.params.id!);
 if (!profile) return Astro.rewrite('/404');
@@ -21,7 +22,6 @@ const g = profile.guideStatus === 'ready' ? profile.guide : null;
 const tryons = g ? await listTryons(profile.id, profile.guideAttempt) : [];
 const latestReady = new Map<string, string>();
 for (const t of tryons) if (t.status === 'ready') latestReady.set(t.outfitId, t.id);
-const owned = new Set(profile.capsuleOwned);
 const stores = Object.fromEntries(Object.entries(STORES).map(([k, s]) => [k, { name: s.name, url: s.url }]));
 const occasions = ['All', 'Work', 'Weekend', 'Evening', 'Travel'];
 const seasons = ['All', 'Spring', 'Summer', 'Fall', 'Winter'];
@@ -29,7 +29,7 @@ const demo = aiMode();
 const editStep = Number(Astro.url.searchParams.get('edit')) || missingStep;
 const prompts = g ? Object.fromEntries(g.outfits.map((o) => [o.id, tryonPrompt(profile, o)])) : {};
 ---
-<Base title={profile.name}>
+<Base title={profile.name} profile={profile} current="guide">
   <header class="top">
     <div class="sheetthumb">
       <img src={`/api/p/${profile.id}/image/sheet?v=${profile.attempt}`} alt={`${profile.name}'s character sheet`} />
@@ -42,10 +42,11 @@ const prompts = g ? Object.fromEntries(g.outfits.map((o) => [o.id, tryonPrompt(p
       <span class="label">Vestry</span>
       <h1>{profile.name}</h1>
       {g && <p class="summary">{g.summary}</p>}
+      {canMakeOutfits(profile) && <div><Button variant="primary" href={`/p/${profile.id}/dressing#outfits`}>Make new outfits</Button></div>}
       {g && (
         <details class="rewrite">
           <summary class="label link">Rewrite guide</summary>
-          <p class="muted">Writes a new palette, rules and outfits from your current answers. Try-ons from this guide leave the dressing room.</p>
+          <p class="muted">Writes a new palette, rules and outfits from your current answers. Try-ons from this guide leave Your Colors.</p>
           <form method="post" action={`/api/p/${profile.id}/guide/regenerate`}><Button variant="primary">Rewrite my guide</Button></form>
         </details>
       )}
@@ -101,22 +102,9 @@ const prompts = g ? Object.fromEntries(g.outfits.map((o) => [o.id, tryonPrompt(p
         </div>
       </section>
 
-      <section class="block">
-        <div class="bhead"><h2>Capsule</h2><span class="label">Tick what you own</span></div>
-        <div class="capsule" id="capsule">
-          {g.capsule.map((c, i) => (
-            <label class="capitem">
-              <input type="checkbox" value={i} checked={owned.has(i)} />
-              <span>{c.item}</span>
-              <span class="label">{c.category}</span>
-            </label>
-          ))}
-        </div>
-      </section>
-
       <section class="block" id="room">
         <div class="bhead">
-          <h2>Dressing room</h2>
+          <h2>Your Colors</h2>
           <a class="label link" id="zipLink" href={`/api/p/${profile.id}/tryons/zip`} hidden={latestReady.size === 0}>Download all</a>
         </div>
         <div class="filters">
@@ -215,11 +203,6 @@ const prompts = g ? Object.fromEntries(g.outfits.map((o) => [o.id, tryonPrompt(p
     setTimeout(poll, 3000);
   }
 
-  // Capsule checklist saves on every tick.
-  document.getElementById('capsule')?.addEventListener('change', () => {
-    const owned = [...document.querySelectorAll<HTMLInputElement>('#capsule input:checked')].map((i) => Number(i.value));
-    fetch(`/api/p/${id}/capsule`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ owned }) });
-  });
 
   // Occasion and season filters.
   const filter = { occasion: 'All', season: 'All' };
@@ -240,7 +223,7 @@ const prompts = g ? Object.fromEntries(g.outfits.map((o) => [o.id, tryonPrompt(p
     });
   });
 
-  // Dressing room dialog.
+  // Your Colors outfit dialog.
   const dialog = document.getElementById('outfit') as HTMLDialogElement | null;
   let current: any = null;
   let shown: T | null = null;
@@ -398,10 +381,6 @@ const prompts = g ? Object.fromEntries(g.outfits.map((o) => [o.id, tryonPrompt(p
   .rule h3 { font-size: var(--text-sm); font-weight: 500; text-transform: uppercase; letter-spacing: var(--track-label); margin-bottom: 4px; }
   .rule p { font-size: var(--text-sm); }
 
-  .capsule { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 28px; }
-  .capitem { display: flex; gap: 10px; align-items: baseline; padding: 8px 0; border-bottom: 1px dashed var(--line); cursor: pointer; font-size: var(--text-sm); }
-  .capitem input { accent-color: var(--accent); }
-  .capitem .label { margin-left: auto; }
 
   .filters { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-bottom: 18px; }
   .chips { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -459,11 +438,11 @@ const prompts = g ? Object.fromEntries(g.outfits.map((o) => [o.id, tryonPrompt(p
   .why { background: var(--surface); padding: 14px; margin-top: 16px; display: flex; flex-direction: column; gap: 6px; font-size: var(--text-sm); }
 
   @media (max-width: 900px) {
-    .families, .capsule { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .families { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .rules, .obody { grid-template-columns: 1fr; }
   }
   @media (max-width: 560px) {
-    .top, .families, .capsule { grid-template-columns: 1fr; }
+    .top, .families { grid-template-columns: 1fr; }
     .sheetthumb { max-width: 200px; }
   }
 </style>

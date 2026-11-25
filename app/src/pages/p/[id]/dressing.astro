@@ -1,0 +1,44 @@
+---
+import Base from '../../../layouts/Base.astro';
+import QuizDialog from '../../../components/QuizDialog.astro';
+import CapsuleSection from '../../../components/CapsuleSection.astro';
+import LooksSection from '../../../components/LooksSection.astro';
+import OutfitsSection from '../../../components/OutfitsSection.astro';
+import { getProfile, beginLooks } from '../../../lib/profiles';
+import { STEPS, nextPath, stepComplete } from '../../../lib/questionnaire';
+import { startLooksJob, startLookImages } from '../../../lib/jobs';
+
+let profile = await getProfile(Astro.params.id!);
+if (!profile) return Astro.rewrite('/404');
+if (!profile.photoPath || !STEPS.every((s) => stepComplete(profile!.answers, s.n))) return Astro.redirect(nextPath(profile));
+
+// Profiles that finished the questionnaire before the looks existed get theirs on first visit.
+if (profile.looksStatus === 'none') {
+  const attempt = await beginLooks(profile.id, ['pending', 'ready', 'failed']);
+  if (attempt !== null) startLooksJob(profile.id, attempt);
+  profile = (await getProfile(profile.id))!;
+}
+// Looks written before they had pictures get them now. Does nothing once the pictures are claimed.
+startLookImages(profile.id);
+---
+<Base title="Dressing Room" profile={profile} current="dressing">
+  <div class="head">
+    <span class="label">{profile.name}</span>
+    <h1>Dressing Room</h1>
+    <nav class="jump" aria-label="On this page">
+      <a class="label" href="#looks">Skin Tone Styles</a>
+      <a class="label" href="#outfits">New Outfits</a>
+    </nav>
+  </div>
+  <CapsuleSection profile={profile} />
+  <LooksSection profile={profile} />
+  <OutfitsSection profile={profile} />
+  <QuizDialog mode="edit" profileId={profile.id} name={profile.name} answers={profile.answers} startStep={3} />
+</Base>
+
+<style>
+  .head { display: flex; flex-direction: column; gap: 8px; margin-bottom: 28px; }
+  .jump { display: flex; gap: 16px; flex-wrap: wrap; }
+  .jump a { text-decoration: underline; text-underline-offset: 4px; }
+  .jump a:hover { color: var(--ink); }
+</style>
