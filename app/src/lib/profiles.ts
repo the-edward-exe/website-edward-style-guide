@@ -92,9 +92,9 @@ export async function setPhoto(id: string, photoPath: string): Promise<number> {
 export async function finishSheet(id: string, attempt: number, r: { path: string } | { error: string }): Promise<boolean> {
   const rows = 'path' in r
     ? await sql`update profiles set sheet_status = 'ready', sheet_path = ${r.path}, sheet_error = null
-        where id = ${id} and attempt = ${attempt} returning id`
+        where id = ${id} and attempt = ${attempt} and sheet_status = 'pending' returning id`
     : await sql`update profiles set sheet_status = 'failed', sheet_error = ${r.error}
-        where id = ${id} and attempt = ${attempt} returning id`;
+        where id = ${id} and attempt = ${attempt} and sheet_status = 'pending' returning id`;
   return rows.length > 0;
 }
 
@@ -139,9 +139,9 @@ export async function beginGuide(id: string, unless: JobStatus[] = []): Promise<
 export async function finishGuide(id: string, attempt: number, r: { guide: Guide } | { error: string }): Promise<boolean> {
   const rows = 'guide' in r
     ? await sql`update profiles set guide = ${sql.json(r.guide as any)}, guide_status = 'ready', guide_error = null
-        where id = ${id} and guide_attempt = ${attempt} returning id`
+        where id = ${id} and guide_attempt = ${attempt} and guide_status = 'pending' returning id`
     : await sql`update profiles set guide_status = 'failed', guide_error = ${r.error}
-        where id = ${id} and guide_attempt = ${attempt} returning id`;
+        where id = ${id} and guide_attempt = ${attempt} and guide_status = 'pending' returning id`;
   return rows.length > 0;
 }
 
@@ -157,9 +157,9 @@ export async function beginLooks(id: string, unless: JobStatus[] = []): Promise<
 export async function finishLooks(id: string, attempt: number, r: { looks: Looks } | { error: string }): Promise<boolean> {
   const rows = 'looks' in r
     ? await sql`update profiles set looks = ${sql.json(r.looks as any)}, looks_status = 'ready', looks_error = null
-        where id = ${id} and looks_attempt = ${attempt} returning id`
+        where id = ${id} and looks_attempt = ${attempt} and looks_status = 'pending' returning id`
     : await sql`update profiles set looks_status = 'failed', looks_error = ${r.error}
-        where id = ${id} and looks_attempt = ${attempt} returning id`;
+        where id = ${id} and looks_attempt = ${attempt} and looks_status = 'pending' returning id`;
   return rows.length > 0;
 }
 

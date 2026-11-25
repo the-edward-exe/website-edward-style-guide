@@ -48,7 +48,7 @@ export async function getTryon(id: string): Promise<Tryon | null> {
   return r ? toTryon(r) : null;
 }
 
-/** All try-ons for a profile, or only those made for one guide (the dressing room shows the current guide's). */
+/** All try-ons for a profile, or only those made for one guide (Your Colors shows the current guide's). */
 export async function listTryons(profileId: string, guideAttempt?: number): Promise<Tryon[]> {
   const rows = guideAttempt === undefined
     ? await sql`select * from tryons where profile_id = ${profileId} order by outfit_id, version`
@@ -58,7 +58,7 @@ export async function listTryons(profileId: string, guideAttempt?: number): Prom
 
 export async function finishTryon(id: string, r: { path: string } | { error: string }): Promise<boolean> {
   const rows = 'path' in r
-    ? await sql`update tryons set status = 'ready', path = ${r.path}, error = null where id = ${id} returning id`
-    : await sql`update tryons set status = 'failed', error = ${r.error} where id = ${id} returning id`;
+    ? await sql`update tryons set status = 'ready', path = ${r.path}, error = null where id = ${id} and status = 'pending' returning id`
+    : await sql`update tryons set status = 'failed', error = ${r.error} where id = ${id} and status = 'pending' returning id`;
   return rows.length > 0;
 }

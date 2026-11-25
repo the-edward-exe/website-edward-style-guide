@@ -6,10 +6,10 @@ import { formRequest } from './helpers/form';
 beforeEach(async () => { await sql`truncate profiles cascade`; });
 
 describe('POST /api/profiles', () => {
-  it('creates a profile and sends the person to the photo step', async () => {
+  it('creates a profile and sends the person to the character sheet page', async () => {
     const res = await POST({ request: formRequest('/api/profiles', { name: 'Ana' }) } as any);
     expect(res.status).toBe(303);
-    expect(res.headers.get('Location')).toMatch(/^\/p\/[A-Za-z0-9_-]{22}\/photo$/);
+    expect(res.headers.get('Location')).toMatch(/^\/p\/[A-Za-z0-9_-]{22}\/sheet$/);
   });
 
   it('starts a profile without a name; the pop-up asks for it', async () => {

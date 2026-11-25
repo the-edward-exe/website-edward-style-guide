@@ -22,7 +22,7 @@ async function withGuide() {
 const post = (fn: any, id: string, body?: object) => fn({ params: { id }, request: new Request('http://localhost/', { method: 'POST', body: body ? JSON.stringify(body) : undefined, headers: { 'Content-Type': 'application/json' } }) });
 
 describe('rewriting the guide', () => {
-  it('try-ons from the old guide leave the dressing room', async () => {
+  it('try-ons from the old guide leave Your Colors', async () => {
     const id = await withGuide();
     await post(startTryon, id, { outfitId: 'o01' });
     expect((await listTryons(id, 1)).length).toBe(1);

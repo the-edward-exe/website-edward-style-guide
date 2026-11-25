@@ -8,7 +8,7 @@ const base: Profile = {
   sheetStatus: 'pending', sheetError: null, sheetApproved: false, attempt: 1,
 };
 const step1 = { section: 'womens', height: `5'6"`, topSize: 'M', bottomSize: '8', shape: 'pear', goals: ['balance-hips'] } as const;
-const step2 = { skinTone: 3, veins: 'green', metal: 'gold', hair: 'dark brown', eyes: 'brown' } as const;
+const step2 = { skinTone: 3, metal: 'gold', hair: 'dark brown', eyes: 'brown' } as const;
 
 describe('questionnaire', () => {
   it('has four steps and seven skin swatches', () => {
@@ -35,7 +35,7 @@ describe('questionnaire', () => {
 
   it('routes to the first incomplete step', () => {
     expect(nextPath({ ...base, answers: { ...step1, ...step2 } })).toBe(`/p/${base.id}/q/3`);
-    expect(nextPath({ ...base, photoPath: null })).toBe(`/p/${base.id}/photo`);
+    expect(nextPath({ ...base, photoPath: null })).toBe(`/p/${base.id}/sheet`);
   });
 });
 

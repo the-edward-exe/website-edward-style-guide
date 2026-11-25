@@ -117,7 +117,16 @@ const firstName = name === NEW_PROFILE_NAME ? '' : name;
         }
         // A step left unanswered: go back to it here instead of leaving the pop-up.
         const missingStep = String(out.next).match(/\/q\/(\d)$/);
-        if (mode === 'edit') location.reload();
+        if (out.go) {
+          const samePage = new URL(out.go, location.href).pathname === location.pathname;
+          location.href = out.go;
+          // Only the #section differs, which wouldn't load the new outfits by itself.
+          // The reload keeps the scroll position, so move to the section first.
+          if (samePage) {
+            document.querySelector(new URL(out.go, location.href).hash)?.scrollIntoView();
+            location.reload();
+          }
+        } else if (mode === 'edit') location.reload();
         else if (n === 4 && missingStep) showStep(Number(missingStep[1]));
         else if (n === 4) location.href = out.next;
         else showStep(n + 1);

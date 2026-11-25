@@ -6,5 +6,5 @@ import { seeOther, readForm, wantsJson } from '../../lib/http';
 export const POST: APIRoute = async ({ request }) => {
   const name = String((await readForm(request)).get('name') ?? '').trim().slice(0, 40) || NEW_PROFILE_NAME;
   const profile = await createProfile(name);
-  return wantsJson(request) ? Response.json({ ok: true, id: profile.id }) : seeOther(`/p/${profile.id}/photo`);
+  return wantsJson(request) ? Response.json({ ok: true, id: profile.id }) : seeOther(`/p/${profile.id}/sheet`);
 };

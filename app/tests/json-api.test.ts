@@ -33,7 +33,7 @@ describe('home page JSON calls', () => {
   it('says where to go after the last step', async () => {
     const p = await createProfile('Ana');
     await setPhoto(p.id, '/x.jpg');
-    await saveAnswers(p.id, { section: 'mens', height: '6ft', topSize: 'M', bottomSize: '32', shape: 'pear', goals: ['comfort'], skinTone: 3, veins: 'blue', metal: 'gold', hair: 'brown', eyes: 'brown', styles: ['minimal'], avoid: ['none'] });
+    await saveAnswers(p.id, { section: 'mens', height: '6ft', topSize: 'M', bottomSize: '32', shape: 'pear', goals: ['comfort'], skinTone: 3, metal: 'gold', hair: 'brown', eyes: 'brown', styles: ['minimal'], avoid: ['none'] });
     const url = `/api/p/${p.id}/answers?step=4`;
     const fields: [string, string][] = [['dressCode', 'remote'], ['location', 'Austin'], ['budget', '$$']];
     const res = await answersRoute({ params: { id: p.id }, url: new URL(`http://localhost${url}`), request: jsonForm(url, fields) } as any);

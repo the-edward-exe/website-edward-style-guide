@@ -1,4 +1,4 @@
-import { aiMode } from './mode';
+import { aiMode, demoDelay } from './mode';
 import { demoSheet } from './demo-sheet';
 
 export const CHARACTER_SHEET_PROMPT = `Use the attached photo as the identity reference. Create one photorealistic character reference sheet of this exact person, laid out as a single portrait-format image on a plain light-gray studio background:
@@ -9,16 +9,16 @@ Bottom row, labeled "FULL BODY VIEW": two full-body views, side and front, stand
 
 Keep the face, eyeglasses if any, hairstyle and hair color, facial hair, skin tone, height, body build and any visible tattoos identical to the photo in every view. Dress the person in the same simple outfit in every view: a plain fitted shirt, dark jeans and white sneakers. Soft even studio light. Clean thin white gutters between panels, labels in a simple sans-serif. One single image.`;
 
-export async function generateCharacterSheet(photo: Buffer): Promise<Buffer> {
+export async function generateCharacterSheet(photo: Buffer, signal?: AbortSignal): Promise<Buffer> {
   if (aiMode().gemini === 'demo') {
-    await new Promise((r) => setTimeout(r, Number(process.env.DEMO_DELAY_MS ?? 3000)));
+    await demoDelay(signal);
     return demoSheet();
   }
-  return geminiImage(CHARACTER_SHEET_PROMPT, photo, 'NO IMAGE CAME BACK. TRY ANOTHER PHOTO.');
+  return geminiImage(CHARACTER_SHEET_PROMPT, photo, 'NO IMAGE CAME BACK. TRY ANOTHER PHOTO.', signal);
 }
 
 /** One Gemini image call: a text prompt plus one reference image, returns the generated image bytes. */
-export async function geminiImage(prompt: string, reference: Buffer, noImageMessage: string): Promise<Buffer> {
+export async function geminiImage(prompt: string, reference: Buffer, noImageMessage: string, signal?: AbortSignal): Promise<Buffer> {
   const model = process.env.GEMINI_MODEL || 'gemini-3-pro-image-preview';
   const mime = reference[0] === 0x89 ? 'image/png' : 'image/jpeg';
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
@@ -28,7 +28,7 @@ export async function geminiImage(prompt: string, reference: Buffer, noImageMess
       contents: [{ role: 'user', parts: [{ text: prompt }, { inline_data: { mime_type: mime, data: reference.toString('base64') } }] }],
       generationConfig: { responseModalities: ['TEXT', 'IMAGE'], imageConfig: { aspectRatio: '3:4', imageSize: '2K' } },
     }),
-    signal: AbortSignal.timeout(120_000),
+    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(120_000)]) : AbortSignal.timeout(120_000),
   });
   const json: any = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(json.error?.message ?? `GOOGLE RETURNED ${res.status}.`);

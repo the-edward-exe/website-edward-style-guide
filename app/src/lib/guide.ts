@@ -1,6 +1,7 @@
 import { z } from 'zod/v4';
 import { STORE_IDS, STORES, storesFor } from './stores';
 import { STEPS, SKIN_SWATCHES, type Answers, type AnswerKey } from './questionnaire';
+import { excludedLine } from './capsule';
 import type { Profile } from './profiles';
 
 const hex = z.string().regex(/^#[0-9A-Fa-f]{6}$/);
@@ -64,14 +65,14 @@ About them:
 - Height ${t('height')}, shirt size ${t('topSize')}, pant size ${t('bottomSize')}
 - Body shape closest to: ${t('shape')}
 - Wants clothes to: ${t('goals')}
-- Skin tone: swatch ${a.skinTone ?? '?'} of 7${skin ? ` (${skin.hex})` : ''}; wrist veins look ${t('veins')}; ${t('metal')} jewelry suits them
+- Skin tone: swatch ${a.skinTone ?? '?'} of 7${skin ? ` (${skin.hex})` : ''}; ${t('metal')} jewelry suits them
 - Hair: ${t('hair')}; eyes: ${t('eyes')}
 - Looks they like: ${t('styles')}
 - Colors they love: ${t('loveColors')}; colors they never wear: ${t('avoidColors')}
 - Avoids: ${t('avoid')}
 - Work dress code: ${t('dressCode')}; outfits wanted for: ${t('occasions')}
 - Lives in: ${t('location')} (use its climate for fabric weights and seasons)
-- Budget per piece: ${t('budget')}
+- Budget per piece: ${t('budget')}${excludedLine(p)}
 
 Use the photo to judge their coloring and proportions; the answers win where they disagree.
 

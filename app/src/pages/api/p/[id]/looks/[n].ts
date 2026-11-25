@@ -40,5 +40,5 @@ export const POST: APIRoute = async ({ params }) => {
   const idx = lookIndex(params.n);
   if (!profile || idx < 0) return new Response('Not found', { status: 404 });
   if (await retryLookImage(profile, idx)) startLookImage(keyOf(profile), idx);
-  return seeOther(`/p/${profile.id}/sheet#look-${idx + 1}`);
+  return seeOther(`/p/${profile.id}/dressing#look-${idx + 1}`);
 };

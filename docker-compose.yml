@@ -18,7 +18,7 @@ services:
   app:
     build: ./app
     ports:
-      - "4321:4321"
+      - "4500:4321"
     env_file:
       - path: .env
         required: false

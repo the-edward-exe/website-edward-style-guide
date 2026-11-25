@@ -37,7 +37,6 @@ export const AnswersSchema = z.object({
   shape: picks(SHAPES, 2),
   goals: z.array(z.enum(GOALS)).min(1),
   skinTone: z.coerce.number().int().min(1).max(7),
-  veins: z.enum(['blue', 'green', 'unsure']),
   metal: z.enum(['silver', 'gold', 'both']),
   hair: text(30),
   eyes: text(30),
@@ -87,7 +86,6 @@ export const STEPS: Step[] = [
   { n: 2, title: 'YOUR COLORING', questions: [
     { n: 5, title: 'Skin tone', fields: [{ key: 'skinTone', kind: 'skin' }] },
     { n: 6, title: 'Undertone check', fields: [
-      { key: 'veins', kind: 'single', label: 'The veins on your wrist look', options: opts([['blue', 'Blue or purple'], ['green', 'Green'], ['unsure', "Can't tell"]]) },
       { key: 'metal', kind: 'single', label: 'Jewelry that looks better on you', options: opts([['silver', 'Silver'], ['gold', 'Gold'], ['both', 'Both']]) }] },
     { n: 7, title: 'Hair and eye color', fields: [
       { key: 'hair', kind: 'text', label: 'Hair', placeholder: 'salt and pepper' },
@@ -154,7 +152,7 @@ export function prefillFromRead(answers: Partial<Answers>, read: PhotoRead | nul
 }
 
 export function nextPath(p: Profile): string {
-  if (!p.photoPath) return `/p/${p.id}/photo`;
+  if (!p.photoPath) return `/p/${p.id}/sheet`;
   const open = STEPS.find((s) => !stepComplete(p.answers, s.n));
   if (open) return `/p/${p.id}/q/${open.n}`;
   if (!p.sheetApproved) return `/p/${p.id}/sheet`;

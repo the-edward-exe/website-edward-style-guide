@@ -16,6 +16,16 @@ async function upload(id: string, file: string, type: string) {
   return POST({ params: { id }, request } as any);
 }
 
+describe('POST photo without JavaScript', () => {
+  it('shows a bad file’s message on the character sheet page', async () => {
+    const p = await createProfile('Ana');
+    const form = new FormData();
+    form.append('photo', new File([await readFile(new URL('./fixtures/not-image.txt', import.meta.url))], 'not-image.txt', { type: 'text/plain' }));
+    const res = await POST({ params: { id: p.id }, request: new Request('http://localhost/', { method: 'POST', body: form }) } as any);
+    expect(res.headers.get('Location')).toMatch(new RegExp(`^/p/${p.id}/sheet\\?error=`));
+  });
+});
+
 describe('POST photo (drag and drop, JSON)', () => {
   it('returns the saved state as JSON and stays on the page', async () => {
     const p = await createProfile('Ana');

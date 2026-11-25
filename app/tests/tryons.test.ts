@@ -112,7 +112,7 @@ describe('try-on endpoints', () => {
     vi.mocked(generateTryon).mockResolvedValue(PNG);
     for (const o of ['o01', 'o01', 'o02']) await runTryonJob((await createTryon(id, o, 'p', 1)).id);
     const res = await zipRoute({ params: { id } } as any);
-    expect(res.headers.get('Content-Disposition')).toContain('ana-mar-a-dressing-room.zip');
+    expect(res.headers.get('Content-Disposition')).toContain('ana-mar-a-your-colors.zip');
     const files = Object.keys(unzipSync(new Uint8Array(await res.arrayBuffer()))).sort();
     expect(files).toEqual(['ana-mar-a-camel-and-charcoal-1.png', 'ana-mar-a-navy-overshirt-weekday-2.png']);
   });

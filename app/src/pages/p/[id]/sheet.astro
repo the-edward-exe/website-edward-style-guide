@@ -1,45 +1,47 @@
 ---
 import Base from '../../../layouts/Base.astro';
 import Button from '../../../components/Button.astro';
-import { getProfile, beginLooks } from '../../../lib/profiles';
-import { nextPath } from '../../../lib/questionnaire';
-import { startLooksJob, startLookImages } from '../../../lib/jobs';
-import { listLookImages } from '../../../lib/look-images';
+import { getProfile } from '../../../lib/profiles';
+import { STEPS, stepComplete } from '../../../lib/questionnaire';
 import { aiMode } from '../../../lib/ai/mode';
+import { STOPPED } from '../../../lib/stop';
 
-let profile = await getProfile(Astro.params.id!);
+const profile = await getProfile(Astro.params.id!);
 if (!profile) return Astro.rewrite('/404');
-if (!profile.photoPath) return Astro.redirect(`/p/${profile.id}/photo`);
 
-// Profiles that finished the questionnaire before the looks existed get theirs on first visit.
-if (profile.looksStatus === 'none' && nextPath(profile) === `/p/${profile.id}/sheet`) {
-  const attempt = await beginLooks(profile.id, ['pending', 'ready', 'failed']);
-  if (attempt !== null) startLooksJob(profile.id, attempt);
-  profile = (await getProfile(profile.id))!;
-}
-// Looks written before they had pictures get them now. Does nothing once the pictures are claimed.
-startLookImages(profile.id);
-
-const { looks, looksStatus, looksError } = profile;
-const lookImages = await listLookImages(profile);
-const version = (path: string | null | undefined) => path?.match(/look-(\d+)/)?.[1] ?? '';
-
-const { sheetStatus: status, sheetError } = profile;
+const { sheetStatus: status, sheetError, photoPath } = profile;
 const demo = aiMode().gemini === 'demo';
 const v = profile.attempt;
+const uploadError = Astro.url.searchParams.get('error');
+const openStep = STEPS.find((s) => !stepComplete(profile.answers, s.n));
+const heading = !photoPath ? 'Add your photo'
+  : status === 'ready' ? 'Is this you?'
+  : status === 'failed' ? (sheetError === STOPPED ? 'Sheet stopped' : 'The sheet didn’t work')
+  : 'Building your character sheet';
 ---
-<Base title="Character sheet">
+<Base title="Character sheet" profile={profile} current="sheet">
   <div class="head">
     <span class="label">Character sheet · {profile.name}</span>
-    <h1>{status === 'ready' ? 'Is this you?' : status === 'failed' ? 'The sheet didn’t work' : 'Building your character sheet'}</h1>
-    <p class="label">Every outfit you try on uses this sheet. Check the face, hair and build.</p>
+    <h1>{heading}</h1>
+    <p class="label">{photoPath ? 'Every outfit you try on uses this sheet. Check the face, hair and build.' : 'Front. Full body. Daylight. Plain background.'}</p>
     {demo && <p class="note-warn">Demo mode: add GEMINI_API_KEY to .env for real sheets</p>}
   </div>
 
   <div class="pair">
     <figure>
-      <div class="frame"><img src={`/api/p/${profile.id}/image/photo?v=${v}`} alt={`${profile.name}'s photo`} /></div>
+      <form method="post" action={`/api/p/${profile.id}/photo`} enctype="multipart/form-data">
+        <label class="drop" id="drop" data-has={photoPath ? 'yes' : 'no'}>
+          <img id="preview" src={photoPath ? `/api/p/${profile.id}/image/photo?v=${v}` : undefined} alt={`${profile.name}'s photo`} hidden={!photoPath} />
+          <span class="prompt" id="prompt" hidden={!!photoPath}>
+            <span class="label strong">Drag a photo here</span>
+            <span class="label">or click to browse · JPG, PNG or WebP</span>
+          </span>
+          <input id="photoFile" type="file" name="photo" accept="image/jpeg,image/png,image/webp" aria-label={photoPath ? 'Use a different photo' : 'Choose your photo'} />
+        </label>
+        <noscript><Button variant="primary">Upload</Button></noscript>
+      </form>
       <figcaption class="label">Your photo</figcaption>
+      <p class="error" id="photoError" role="alert">{uploadError}</p>
     </figure>
 
     <figure class="sheet">
@@ -47,133 +49,88 @@ const v = profile.attempt;
         {status === 'ready' && <img src={`/api/p/${profile.id}/image/sheet?v=${v}`} alt={`${profile.name}'s character sheet`} />}
         {status === 'pending' && <span class="label pulse">Building. This takes 20 to 60 seconds.</span>}
         {status === 'failed' && <span class="error">{sheetError}</span>}
+        {status === 'none' && <span class="label">Your character sheet appears here</span>}
       </div>
       <figcaption class="label">Character sheet</figcaption>
     </figure>
   </div>
 
-  <div class="actions">
-    {status === 'ready' && (
-      <form method="post" action={`/api/p/${profile.id}/sheet/approve`}>
-        <Button variant="primary">This is me</Button>
-      </form>
-    )}
-    {status !== 'pending' && (
-      <form method="post" action={`/api/p/${profile.id}/sheet/retry`}>
-        <Button>Try again</Button>
-      </form>
-    )}
-    {status === 'ready' && <a class="label dl" href={`/api/p/${profile.id}/image/sheet?download=1`}>Download</a>}
-    <a class="label dl" href={`/p/${profile.id}/photo`}>Use a different photo</a>
-  </div>
-
-  {looksStatus !== 'none' && (
-    <section class="looks" aria-labelledby="looksTitle">
-      <div class="lhead">
-        <span class="label">10 looks for you</span>
-        <h2 id="looksTitle">Picked for your skin tone and style</h2>
-        {looksStatus === 'ready' && (
-          <p class="label">
-            Each look is made on your character sheet. {status === 'ready' ? 'Pictures take a minute or two.' : 'Pictures start once your sheet is ready.'}
-            <a class="dl" id="lookZip" href={`/api/p/${profile.id}/looks/zip`} hidden={!lookImages.some((i) => i.status === 'ready')}>Download all</a>
-          </p>
-        )}
-      </div>
-      {looksStatus === 'pending' && (
-        <div class="lgrid">
-          {Array.from({ length: 10 }, () => <div class="lcard"><div class="lframe waiting"><span class="label pulse">Writing your looks</span></div></div>)}
-        </div>
+  {photoPath && (
+    <div class="actions">
+      {openStep && <Button variant="primary" href={`/p/${profile.id}/q/${openStep.n}`}>Next: the questions</Button>}
+      {status === 'ready' && !openStep && (
+        <form method="post" action={`/api/p/${profile.id}/sheet/approve`}>
+          <Button variant="primary">This is me</Button>
+        </form>
       )}
-      {looksStatus === 'failed' && (
-        <div class="lfail">
-          <span class="error">{looksError}</span>
-          <form method="post" action={`/api/p/${profile.id}/looks`}><Button>Try again</Button></form>
-        </div>
+      {status === 'pending' && (
+        <form method="post" action={`/api/p/${profile.id}/stop`}>
+          <input type="hidden" name="what" value="sheet" />
+          <Button>Stop</Button>
+        </form>
       )}
-      {looksStatus === 'ready' && looks && (
-        <ol class="lgrid">
-          {looks.looks.map((l, i) => {
-            const img = lookImages.find((x) => x.idx === i);
-            // No row yet while the claim is in flight: show it as being made if it can be.
-            const state = img?.status ?? (status === 'ready' ? 'pending' : 'waiting');
-            const n = i + 1;
-            return (
-              <li class="lcard" id={`look-${n}`}>
-                <div class:list={['lframe', { waiting: state !== 'ready' }]} data-n={n} data-status={state} data-v={version(img?.path)} data-alt={`${profile.name} wearing ${l.name}`}>
-                  {state === 'ready' && <img src={`/api/p/${profile.id}/looks/${n}?v=${version(img?.path)}`} alt={`${profile.name} wearing ${l.name}`} loading="lazy" />}
-                  {state === 'pending' && <span class="label pulse">Dressing you</span>}
-                  {state === 'waiting' && <span class="label">{status === 'failed' ? 'Needs your character sheet' : 'Waiting for your sheet'}</span>}
-                  {state === 'failed' && (
-                    <>
-                      <span class="error">{img?.error}</span>
-                      <form method="post" action={`/api/p/${profile.id}/looks/${n}`}><Button>Try again</Button></form>
-                    </>
-                  )}
-                </div>
-                <div class="lmeta">
-                  <span class="label">{String(n).padStart(2, '0')} · {l.style}</span>
-                  <a class="label dl" href={`/api/p/${profile.id}/looks/${n}?download=1`} hidden={state !== 'ready'}>Download</a>
-                </div>
-                <span class="lname">{l.name}</span>
-                <ul class="pieces">{l.pieces.map((pc) => <li><i style={`background:${pc.hex}`} />{pc.item}<em>{pc.color}</em></li>)}</ul>
-                <p class="why">{l.why}</p>
-              </li>
-            );
-          })}
-        </ol>
+      {status !== 'pending' && (
+        <form method="post" action={`/api/p/${profile.id}/sheet/retry`}>
+          <Button>Try again</Button>
+        </form>
       )}
-    </section>
+      <label class="label dl" for="photoFile">Use a different photo</label>
+    </div>
   )}
 </Base>
 
-<script define:vars={{ id: profile.id, status, looksStatus }}>
-  // The sheet or the written looks finishing reloads the page. Look pictures swap in place as each one lands.
-  const frames = () => [...document.querySelectorAll('.lframe[data-n]')];
-  const busy = () => status === 'pending' || looksStatus === 'pending' || frames().some((f) => f.dataset.status === 'pending');
+<script define:vars={{ id: profile.id, status }}>
+  const drop = document.getElementById('drop');
+  const input = document.getElementById('photoFile');
+  const preview = document.getElementById('preview');
+  const prompt = document.getElementById('prompt');
+  const error = document.getElementById('photoError');
 
-  function paint(frame, img) {
-    // A failure needs the server-rendered Try again button.
-    if (img.status === 'failed') return location.reload();
-    const n = frame.dataset.n;
-    frame.dataset.status = img.status;
-    frame.dataset.v = img.v ?? '';
-    frame.classList.toggle('waiting', img.status !== 'ready');
-    frame.replaceChildren();
-    if (img.status === 'ready') {
-      const el = document.createElement('img');
-      el.src = `/api/p/${id}/looks/${n}?v=${img.v}`;
-      el.alt = frame.dataset.alt;
-      frame.append(el);
-    } else if (img.status === 'pending') {
-      const el = document.createElement('span');
-      el.className = 'label pulse';
-      el.textContent = 'Dressing you';
-      frame.append(el);
-    }
-    const dl = frame.parentElement.querySelector('.lmeta a');
-    if (dl) dl.hidden = img.status !== 'ready';
+  async function upload(file) {
+    error.textContent = '';
+    preview.src = URL.createObjectURL(file);
+    preview.hidden = false;
+    prompt.hidden = true;
+    drop.classList.add('busy');
+    const body = new FormData();
+    body.append('photo', file);
+    const res = await fetch(`/api/p/${id}/photo`, { method: 'POST', body, headers: { Accept: 'application/json' } }).catch(() => null);
+    const out = res ? await res.json().catch(() => null) : null;
+    drop.classList.remove('busy');
+    if (out?.ok) return location.assign(location.pathname);
+    error.textContent = out?.error ?? 'UPLOAD FAILED. TRY AGAIN.';
   }
 
+  input.addEventListener('change', () => input.files?.[0] && upload(input.files[0]));
+  ['dragenter', 'dragover'].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', (e) => { const f = e.dataTransfer?.files?.[0]; if (f) upload(f); });
+  // Stop a file dropped beside the box from opening in the tab.
+  window.addEventListener('dragover', (e) => e.preventDefault());
+  window.addEventListener('drop', (e) => e.preventDefault());
+
+  // The sheet finishing reloads the page.
   const poll = async () => {
     const s = await fetch(`/api/p/${id}/status`).then((r) => r.json()).catch(() => null);
-    if (s && (s.sheetStatus !== status || s.looksStatus !== looksStatus)) return location.reload();
-    if (s) {
-      for (const frame of frames()) {
-        const img = s.lookImages[Number(frame.dataset.n) - 1];
-        if (img && (img.status !== frame.dataset.status || (img.v ?? '') !== frame.dataset.v)) paint(frame, img);
-      }
-      const zip = document.getElementById('lookZip');
-      if (zip) zip.hidden = !s.lookImages.some((i) => i.status === 'ready');
-    }
-    if (busy()) setTimeout(poll, 3000);
+    if (s && s.sheetStatus !== status) return location.reload();
+    setTimeout(poll, 3000);
   };
-  if (busy()) setTimeout(poll, 3000);
+  if (status === 'pending') setTimeout(poll, 3000);
 </script>
 
 <style>
   .head { display: flex; flex-direction: column; gap: 8px; margin-bottom: 28px; }
   .pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--gap); align-items: start; max-width: min(820px, calc((100vh - 300px) * 1.15)); }
   figure { margin: 0; display: flex; flex-direction: column; gap: 8px; }
+  .drop { position: relative; aspect-ratio: 3 / 4; display: flex; align-items: center; justify-content: center; text-align: center; background: var(--chip); cursor: pointer; overflow: hidden; outline: 1px dashed var(--muted); outline-offset: -10px; }
+  .drop[data-has=yes] { outline: none; background: var(--surface); }
+  .drop:hover, .drop.over, .drop:focus-within { outline: 2px solid var(--ink); outline-offset: -2px; }
+  .drop.busy img { opacity: 0.5; }
+  .drop img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .drop input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .prompt { display: flex; flex-direction: column; gap: 6px; padding: 0 16px; }
+  .strong { color: var(--ink); }
+  .error:empty { display: none; }
   .frame { background: var(--surface); aspect-ratio: 3 / 4; display: flex; align-items: center; justify-content: center; overflow: hidden; }
   .frame img { width: 100%; height: 100%; object-fit: contain; }
   .frame.waiting { background: var(--chip); padding: 24px; text-align: center; }
@@ -181,29 +138,7 @@ const v = profile.attempt;
   @keyframes pulse { 50% { opacity: 0.4; } }
   @media (prefers-reduced-motion: reduce) { .pulse { animation: none; } }
   .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 24px; }
-  .dl { margin-left: 8px; text-decoration: underline; text-underline-offset: 4px; }
+  .dl { margin-left: 8px; text-decoration: underline; text-underline-offset: 4px; cursor: pointer; }
   .dl:hover { color: var(--ink); }
   @media (max-width: 760px) { .pair { grid-template-columns: 1fr; } }
-
-  .looks { margin-top: 48px; padding-top: 28px; border-top: 1px solid var(--line); }
-  .lhead { display: flex; flex-direction: column; gap: 6px; margin-bottom: 20px; }
-  .lhead h2 { font-size: var(--text-lg); }
-  .lgrid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--gap); }
-  .lcard { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-  .lframe { background: var(--surface); aspect-ratio: 3 / 4; display: flex; flex-direction: column; gap: 12px; align-items: center; justify-content: center; overflow: hidden; }
-  .lframe :global(img) { width: 100%; height: 100%; object-fit: cover; }
-  .lframe :global(.pulse) { animation: pulse 1.6s ease-in-out infinite; }
-  .lframe.waiting { background: var(--chip); padding: 16px; text-align: center; }
-  .lmeta { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-top: 4px; }
-  .lmeta .dl { margin-left: 0; }
-  .lname { text-transform: uppercase; letter-spacing: var(--track-label); font-size: var(--text-sm); font-weight: 500; }
-  .pieces { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: var(--text-xs); }
-  .pieces li { display: flex; align-items: center; gap: 6px; }
-  .pieces em { font-style: normal; color: var(--muted); }
-  .pieces i { width: 10px; height: 10px; flex: none; border: 1px solid var(--line); }
-  .why { margin: 0; font-size: var(--text-xs); color: var(--muted); }
-  .lfail { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
-  @media (max-width: 1100px) { .lgrid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-  @media (max-width: 760px) { .lgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-  @media (prefers-reduced-motion: reduce) { .lframe :global(.pulse) { animation: none; } }
 </style>

@@ -1,13 +1,13 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
-import { aiMode } from './mode';
+import { aiMode, demoDelay } from './mode';
 import { DEMO_GUIDE } from './demo-guide';
 import { GuideSchema, guidePrompt, type Guide } from '../guide';
 import type { Profile } from '../profiles';
 
-export async function generateGuide(p: Profile, photo: Buffer): Promise<Guide> {
+export async function generateGuide(p: Profile, photo: Buffer, signal?: AbortSignal): Promise<Guide> {
   if (aiMode().claude === 'demo') {
-    await new Promise((r) => setTimeout(r, Number(process.env.DEMO_DELAY_MS ?? 3000)));
+    await demoDelay(signal);
     return DEMO_GUIDE;
   }
   const client = new Anthropic();
@@ -22,7 +22,7 @@ export async function generateGuide(p: Profile, photo: Buffer): Promise<Guide> {
       ],
     }],
     output_config: { effort: 'medium', format: zodOutputFormat(GuideSchema) },
-  });
+  }, { signal });
   if (res.stop_reason === 'refusal' || !res.parsed_output) throw new Error("THE GUIDE DIDN'T COME BACK. TRY AGAIN.");
   return res.parsed_output;
 }
