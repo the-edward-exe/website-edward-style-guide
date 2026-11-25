@@ -46,3 +46,36 @@ export function keepExcluded(guide: Guide, excluded: string[]): { guide: Guide; 
   });
   return { guide: { ...guide, capsule }, owned: [...new Set(owned)].sort((a, b) => a - b) };
 }
+
+export type CapsuleGroupKey = 'tops' | 'bottoms' | 'shoes' | 'accessories';
+
+const GROUPS: { key: CapsuleGroupKey; label: string }[] = [
+  { key: 'tops', label: 'Tops' },
+  { key: 'bottoms', label: 'Bottoms' },
+  { key: 'shoes', label: 'Shoes' },
+  { key: 'accessories', label: 'Accessories' },
+];
+
+const SHOES = /\b(shoes?|footwear|sneakers?|trainers?|boots?|loafers?|sandals?|heels?|flats?|mules?|chukkas?|oxfords? shoes?|derbys?|slides?)\b/;
+const BOTTOMS = /\b(bottoms?|trousers?|pants?|jeans?|denim|chinos?|shorts?|skirts?|joggers?|leggings?|sweatpants?|slacks?)\b/;
+const ACCESSORIES = /\b(accessor(y|ies)|bags?|totes?|belts?|watch(es)?|jewel(le)?ry|chains?|necklaces?|rings?|bracelets?|earrings?|hats?|caps?|beanies?|scarf|scarves|sunglasses|glasses|eyewear|ties?|socks?|gloves?)\b/;
+const TOPS = /\b(tops?|outer(wear)?|tailoring|shirts?|knits?|knitwear|dress(es)?|jackets?|coats?|sweaters?|sweatshirts?|hoodies?|blazers?|tees?|t-shirts?|blouses?|cardigans?|vests?)\b/;
+
+/** Which of the four capsule groups a piece sits in: by its category, or by its name when the category is vague. */
+export function capsuleGroup(piece: { category: string; item: string }): CapsuleGroupKey {
+  const sort = (text: string): CapsuleGroupKey | null => {
+    const t = text.toLowerCase();
+    if (SHOES.test(t)) return 'shoes';
+    if (ACCESSORIES.test(t)) return 'accessories';
+    if (BOTTOMS.test(t)) return 'bottoms';
+    if (TOPS.test(t)) return 'tops';
+    return null;
+  };
+  return sort(piece.category) ?? sort(piece.item) ?? 'tops';
+}
+
+/** The capsule in Tops, Bottoms, Shoes, Accessories order. Each piece keeps its index in the guide's list. */
+export function groupCapsule<T extends { category: string; item: string }>(capsule: T[]) {
+  const indexed = capsule.map((c, index) => ({ ...c, index }));
+  return GROUPS.map((g) => ({ ...g, pieces: indexed.filter((c) => capsuleGroup(c) === g.key) })).filter((g) => g.pieces.length > 0);
+}
